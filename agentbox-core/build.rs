@@ -1,6 +1,6 @@
-use std::process::Command;
 use std::env;
 use std::path::Path;
+use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=../runner-wasm/src");
@@ -11,32 +11,29 @@ fn main() {
 
     // Only build if we are not in a check/clippy build (optimization)
     // But for simplicity/correctness, let's just try to build or copy.
-    
+
     // We assume the user has set up the environment (rustup target add wasm32-wasip1)
     let status = Command::new("cargo")
-        .args(&[
+        .args([
             "build",
-            "--package", "runner-wasm",
-            "--target", "wasm32-wasip1",
+            "--package",
+            "runner-wasm",
+            "--target",
+            "wasm32-wasip1",
             "--release",
-            "--manifest-path", "../runner-wasm/Cargo.toml",
-            // We need to be careful about not locking the directory if we are running from root cargo
-            // But usually sub-calls are okay if they are separate packages?
-            // Actually, calling cargo inside build.rs can be tricky due to locking.
-            // A safer bet for now might be to pre-build or assume pre-built.
-            // BUT, the feedback suggested using build.rs.
-            // Let's try to just find the artifact.
+            "--manifest-path",
+            "../runner-wasm/Cargo.toml",
         ])
         .status();
 
-    // If cargo build fails (e.g. locking), we might just fail. 
+    // If cargo build fails (e.g. locking), we might just fail.
     // BUT, recursive cargo build is dangerous.
-    // Alternative: The user (TaskFile) builds it. 
+    // Alternative: The user (TaskFile) builds it.
     // Reviewer suggested: "Use build.rs in agentbox-core to build runner-wasm ... copy to OUT_DIR"
-    
+
     // Let's allow failure but try to copy the artifact if it exists.
     let target_dir_wasm = Path::new("../runner-wasm/target/wasm32-wasip1/release/runner-wasm.wasm");
-    
+
     if target_dir_wasm.exists() {
         std::fs::copy(target_dir_wasm, &dest_path).expect("Failed to copy wasm binary");
     } else {
@@ -45,35 +42,35 @@ fn main() {
         // Or create a dummy empty file to allow check to pass?
         // No, we need it.
         // panic!("runner-wasm.wasm not found. Please run 'cargo build --target wasm32-wasip1 --release -p runner-wasm' first.");
-        
+
         // Actually, let's try to run the cargo build command. It might work if different target dirs are used?
-        // But they share the workspace probably? 
+        // But they share the workspace probably?
         // runner-wasm has its own Cargo.toml.
-        
+
         // For this environment, let's assume valid pre-build or just try to trigger it.
         // Since we are in agentbox-core, which is part of the workspace...
-        // Let's just point to the relative path in the includes! macro if possible, 
+        // Let's just point to the relative path in the includes! macro if possible,
         // OR rely on the `include_bytes` with absolute/relative path if we can fix the fragility.
-        
-        // The reviewer suggested using OUT_DIR. 
+
+        // The reviewer suggested using OUT_DIR.
         // "include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm"))"
-        
+
         // So we MUST put it in OUT_DIR.
-        
+
         // Let's Try executing cargo build.
         if let Ok(exit_status) = status {
-             if !exit_status.success() {
-                  eprintln!("Cargo build for runner-wasm failed or was skipped.");
-             }
+            if !exit_status.success() {
+                eprintln!("Cargo build for runner-wasm failed or was skipped.");
+            }
         }
-        
+
         // Retry copy
         if target_dir_wasm.exists() {
-             std::fs::copy(target_dir_wasm, &dest_path).expect("Failed to copy wasm binary");
+            std::fs::copy(target_dir_wasm, &dest_path).expect("Failed to copy wasm binary");
         } else {
-             // Create a dummy file if we are just checking? 
-             // No, bad idea.
-             eprintln!("Warning: Wasm binary not found at {:?}", target_dir_wasm);
+            // Create a dummy file if we are just checking?
+            // No, bad idea.
+            eprintln!("Warning: Wasm binary not found at {:?}", target_dir_wasm);
         }
     }
 }

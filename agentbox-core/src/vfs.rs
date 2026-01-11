@@ -1,12 +1,14 @@
+use anyhow::{bail, Result};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use anyhow::{Result, bail};
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct VirtualFS {
     files: Arc<RwLock<HashMap<String, Vec<u8>>>>,
 }
 
+#[allow(dead_code)]
 impl VirtualFS {
     pub fn new() -> Self {
         Self {

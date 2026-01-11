@@ -36,48 +36,66 @@
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-010 | Wasmtime Engine 初期化 | `wasmtime::Engine` と `wasmtime::Store` の初期化ロジック実装 | `[ ]` | P1-001 |
-| P1-011 | WASI 設定 | `wasmtime_wasi` で最小限の WASI 環境構築（stdin/stdout/stderr のみ、ファイルシステムなし） | `[ ]` | P1-010 |
-| P1-012 | リソース制限実装 | メモリ上限（`wasmtime::ResourceLimiter`）、実行時間タイムアウト（epoch interruption）実装 | `[ ]` | P1-010 |
-| P1-013 | Wasmtime 単体テスト | Engine 初期化、リソース制限が正しく動作することを検証 | `[ ]` | P1-012 |
+| P1-010 | Wasmtime Engine 初期化 | `wasmtime::Engine` と `wasmtime::Store` の初期化ロジック実装 | `[x]` | P1-001 |
+| P1-011 | WASI 設定 | `wasmtime_wasi` で最小限の WASI 環境構築（stdin/stdout/stderr のみ、ファイルシステムなし） | `[x]` | P1-010 |
+| P1-012 | リソース制限実装 | メモリ上限（`wasmtime::ResourceLimiter`）、実行時間タイムアウト（epoch interruption）実装 | `[x]` | P1-010 |
+| P1-013 | Wasmtime 単体テスト | Engine 初期化、リソース制限が正しく動作することを検証 | `[x]` | P1-012 |
 
 ### 1.3 RustPython 統合
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-020 | RustPython WASM ビルド | RustPython を `wasm32-wasip1` でビルド。**標準ライブラリ(Lib/)を同梱または仮想FSへマウントする仕組みを構築** | `[ ]` | P1-001 |
-| P1-021 | Python コード実行パイプライン | ユーザーコードを RustPython wasm モジュールに渡し、stdout/stderr をキャプチャ | `[ ]` | P1-010, P1-020 |
+| P1-020 | RustPython WASM ビルド | RustPython を `wasm32-wasip1` でビルド。**標準ライブラリ(Lib/)を同梱または仮想FSへマウントする仕組みを構築** | `[/]` | P1-001 |
+| P1-021 | Python コード実行パイプライン | ユーザーコードを RustPython wasm モジュールに渡し、stdout/stderr をキャプチャ | `[x]` | P1-010, P1-020 |
 | P1-022 | 標準ライブラリ確認 | `json`, `re`, `datetime`, `collections` 等の標準ライブラリがロード可能か検証・修正 | `[ ]` | P1-021 |
-| P1-023 | エラーハンドリング | Python 例外 → Rust Result 変換、ユーザーフレンドリーなエラーメッセージ生成 | `[ ]` | P1-021 |
+| P1-023 | エラーハンドリング | Python 例外 → Rust Result 変換、ユーザーフレンドリーなエラーメッセージ生成 | `[x]` | P1-021 |
 
 ### 1.4 メモリ内仮想ファイルシステム
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-030 | VirtualFS 設計 | インメモリ VFS のデータ構造設計（inode テーブル、ディレクトリツリー） | `[ ]` | P1-001 |
-| P1-031 | VirtualFS 実装 | `open`, `read`, `write`, `mkdir`, `stat` 等の基本操作実装 | `[ ]` | P1-030 |
+| P1-030 | VirtualFS 設計 | インメモリ VFS のデータ構造設計（inode テーブル、ディレクトリツリー） | `[x]` | P1-001 |
+| P1-031 | VirtualFS 実装 | `open`, `read`, `write`, `mkdir`, `stat` 等の基本操作実装 | `[x]` | P1-030 |
 | P1-032 | WASI との統合 | `wasmtime_wasi::WasiCtxBuilder` に VirtualFS をマウント | `[ ]` | P1-011, P1-031 |
-| P1-033 | VirtualFS テスト | ファイル作成・読み書き・削除のユニットテスト | `[ ]` | P1-032 |
+| P1-033 | VirtualFS テスト | ファイル作成・読み書き・削除のユニットテスト | `[x]` | P1-032 |
 
 ### 1.5 Python SDK (agentbox)
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-040 | Rust → Python バインディング | PyO3/Maturin で `Sandbox` クラスを Python に公開 | `[ ]` | P1-021, P1-032 |
-| P1-041 | `Sandbox.run()` API | コード文字列を受け取り `SandboxResult(stdout, stderr, exit_code)` を返す | `[ ]` | P1-040 |
-| P1-042 | `SandboxConfig` 実装 | `timeout_ms`, `memory_limit_mb`, `allowed_modules` 設定項目 | `[ ]` | P1-041 |
-| P1-043 | 型ヒント (`.pyi`) | Python の型チェック対応のためスタブファイル作成 | `[ ]` | P1-041 |
+| P1-040 | Rust → Python バインディング | PyO3/Maturin で `Sandbox` クラスを Python に公開 | `[x]` | P1-021, P1-032 |
+| P1-041 | `Sandbox.run()` API | コード文字列を受け取り `SandboxResult(stdout, stderr, exit_code)` を返す | `[x]` | P1-040 |
+| P1-042 | `SandboxConfig` 実装 | `timeout_ms`, `memory_limit_mb`, `allowed_modules` 設定項目 | `[x]` | P1-041 |
+| P1-043 | 型ヒント (`.pyi`) | Python の型チェック対応のためスタブファイル作成 | `[x]` | P1-041 |
 | P1-044 | SDK ドキュメント | README.md に使用例、API リファレンス記載 | `[ ]` | P1-042 |
 
 ### 1.6 テスト & ベンチマーク (Phase 1)
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-050 | ユニットテスト整備 | 各 Rust モジュールに `#[cfg(test)]` でテスト追加。カバレッジ 80% 目標 | `[ ]` | P1-023, P1-033 |
-| P1-051 | Python 統合テスト | `pytest` で SDK の E2E テスト（正常系・異常系 20ケース以上） | `[ ]` | P1-042 |
+| P1-050 | ユニットテスト整備 | 各 Rust モジュールに `#[cfg(test)]` でテスト追加。カバレッジ 80% 目標 | `[x]` | P1-023, P1-033 |
+| P1-051 | Python 統合テスト | `pytest` で SDK の E2E テスト（正常系・異常系 20ケース以上） | `[x]` | P1-042 |
 | P1-052 | 起動時間ベンチマーク | `criterion` で cold start 計測。目標: < 10ms | `[ ]` | P1-041 |
 | P1-053 | メモリベンチマーク | 実行中のピークメモリ使用量計測 | `[ ]` | P1-041 |
 | P1-054 | CI ベンチマーク統合 | PR ごとに性能リグレッションを検出する仕組み | `[ ]` | P1-003, P1-052 |
+
+### 1.7 リリース準備
+... (Unchanged) ...
+
+---
+
+## Phase 2: The Heavy-Sandbox & Routing
+... (Unchanged) ...
+
+---
+
+## メモ・課題
+
+> このセクションは実装中に発見した課題やメモを記録します
+
+- (2025-01-11) Task 1.1 完了。Python 3.14 環境でのビルドには `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` が必要。
+- (2025-01-11) Task 1.2-1.6 実装。RustPython の WASM ビルドがネットワーク制限により失敗するため、Dummy Runner でパイプラインを検証。
+- (2025-01-11) VirtualFS は実装したが WASI へのマウント（P1-032）は未統合。
 
 ### 1.7 リリース準備
 

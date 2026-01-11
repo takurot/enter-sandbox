@@ -15,8 +15,11 @@ impl WasmRuntime {
     pub fn new() -> Result<Self> {
         let mut config = Config::new();
         config.consume_fuel(true); // Enable fuel consumption for timeouts
-        config.async_support(false); // We use sync for now
+        config.async_support(false);
         
+        // Optimize for speed
+        // config.cranelift_opt_level(wasmtime::OptLevel::Speed);
+
         let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
         Ok(Self { engine })
     }
@@ -27,7 +30,6 @@ impl WasmRuntime {
 
     pub fn create_linker(&self) -> Result<Linker<WasmSession>> {
         let mut linker = Linker::new(&self.engine);
-        // Link WASI preview1
         preview1::add_to_linker_sync(&mut linker, |s: &mut WasmSession| &mut s.wasi_ctx)
             .context("Failed to link WASI preview1")?;
         Ok(linker)
@@ -58,11 +60,8 @@ impl Write for WriteWrapper {
     }
 }
 
-
 impl WasmSession {
     pub fn new(memory_limit_bytes: Option<usize>, code: &str) -> Self {
-        // Fallback: Use inherit_stdio for now as custom pipe types are mismatched
-        // between wasi-common and wasmtime-wasi in this version setup.
         // let stdin = ReadPipe::from(code.as_bytes().to_vec());
         
         let stdout_buf = Arc::new(RwLock::new(Vec::new()));
@@ -73,14 +72,14 @@ impl WasmSession {
 
         let mut builder = WasiCtxBuilder::new();
         builder.inherit_stdio();
-        // builder.stdin(stdin).stdout(stdout).stderr(stderr);
-            
         let wasi_ctx = builder.build_p1();
 
         let mut limits_builder = StoreLimitsBuilder::new();
         if let Some(mem) = memory_limit_bytes {
             limits_builder = limits_builder.memory_size(mem);
         }
+        // Explicit table limits
+        limits_builder = limits_builder.table_elements(10000); // 10k elements
         
         let limits = limits_builder.build();
 
@@ -88,23 +87,12 @@ impl WasmSession {
     }
 }
 
-// Implement ResourceLimiter to delegate to StoreLimits
 impl ResourceLimiter for WasmSession {
-    fn memory_growing(
-        &mut self,
-        current: usize,
-        desired: usize,
-        maximum: Option<usize>,
-    ) -> Result<bool> {
+    fn memory_growing(&mut self, current: usize, desired: usize, maximum: Option<usize>) -> Result<bool> {
         self.limits.memory_growing(current, desired, maximum)
     }
 
-    fn table_growing(
-        &mut self,
-        current: usize,
-        desired: usize,
-        maximum: Option<usize>,
-    ) -> Result<bool> {
+    fn table_growing(&mut self, current: usize, desired: usize, maximum: Option<usize>) -> Result<bool> {
         self.limits.table_growing(current, desired, maximum)
     }
 }

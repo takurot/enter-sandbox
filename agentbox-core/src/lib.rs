@@ -56,16 +56,15 @@ impl Sandbox {
         // Runtime has consume_fuel enabled.
         // We can add fuel. 
         if let Some(ms) = self.config.timeout_ms {
-            // Rough estimation: 1 ms ~ X fuel? or just set epoch interruption.
-            // For now, let's skip strict mapping of ms to fuel as it varies.
-            // Or just give a generous amount if not specified.
-             store.set_fuel(u64::MAX).ok(); // Default unlimited?
-             // If we have ms, we need to limit.
-             // store.set_fuel(ms * 1000).ok(); 
+             // Heuristic: 1ms ~ 10_000 fuel? 
+             // Just setting a limit for now.
+             store.set_fuel(ms * 10_000).ok(); 
+        } else {
+             store.set_fuel(u64::MAX).ok();
         }
 
         // Load WASM
-        const WASM: &[u8] = include_bytes!("../../runner-wasm/target/wasm32-wasip1/release/runner-wasm.wasm"); 
+        const WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm")); 
         let module = wasmtime::Module::new(self.runtime.engine(), WASM)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
@@ -86,9 +85,9 @@ impl Sandbox {
             }
         }
              
-        // Output capture is temporarily disabled due to build issues. 
-        // Stdout is inherited (printed to host console).
-        Ok("Output printed to host stdout (capture disabled)".to_string())
+        // Get Output
+        let output_lock = store.data().stdout_buf.read().unwrap();
+        Ok(String::from_utf8_lossy(&output_lock).to_string())
     }
     
     // Config getter

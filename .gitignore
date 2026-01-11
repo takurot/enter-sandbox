@@ -1,6 +1,12 @@
 # Rust
-/target
+target/
 Cargo.lock
+
+# Generated binaries
+*.so
+*.abi3.so
+python_job.log
+*.log
 
 # Python
 __pycache__/

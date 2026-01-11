@@ -1,3 +1,3 @@
-from ._core import __doc__
+from ._core import Sandbox, SandboxConfig
 
-__all__ = ["__doc__"]
+__all__ = ["Sandbox", "SandboxConfig"]

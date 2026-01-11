@@ -21,7 +21,7 @@ dev = [
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+features = ["extension-module"]
 # The module name in Python (the .so/.pyd file)
 module-name = "agentbox._core"
 # Where the python code lives

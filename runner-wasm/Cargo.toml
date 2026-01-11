@@ -1,0 +1,7 @@
+[package]
+name = "runner-wasm"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# rustpython-vm = ... (Commented out due to build failure)

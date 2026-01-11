@@ -7,10 +7,14 @@ edition = "2021"
 name = "agentbox_core"
 crate-type = ["cdylib", "rlib"]
 
+[features]
+extension-module = ["pyo3/extension-module"]
+
 [dependencies]
-pyo3 = { version = "0.23", features = ["extension-module"] }
+pyo3 = { version = "0.23", features = ["abi3-py310"] }
 wasmtime = "29.0"
 wasmtime-wasi = "29.0"
+wasi-common = "29.0"
 anyhow = "1.0"
 
-rustpython-vm = "0.4.0"
+

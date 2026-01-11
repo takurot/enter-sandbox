@@ -1,0 +1,16 @@
+[package]
+name = "agentbox-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "agentbox_core"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+pyo3 = { version = "0.23", features = ["extension-module"] }
+wasmtime = "29.0"
+wasmtime-wasi = "29.0"
+anyhow = "1.0"
+
+rustpython-vm = "0.4.0"

@@ -27,10 +27,10 @@
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-001 | Rustプロジェクト初期化 | `cargo new agentbox-core --lib` でライブラリクレート作成。Cargo.toml に wasmtime, rustpython 依存を追加 | `[ ]` | - |
-| P1-002 | Python SDK スケルトン作成 | `agentbox/` ディレクトリ構成、`pyproject.toml` (maturin)、`__init__.py` 作成 | `[ ]` | - |
-| P1-003 | CI パイプライン構築 | GitHub Actions で Rust build + test、Python lint + test を実行 | `[ ]` | P1-001, P1-002 |
-| P1-004 | 開発環境ドキュメント | `CONTRIBUTING.md` に開発セットアップ手順を記載 | `[ ]` | P1-001 |
+| P1-001 | Rustプロジェクト初期化 | `cargo new agentbox-core --lib` でライブラリクレート作成。Cargo.toml に wasmtime, rustpython 依存を追加 | `[x]` | - |
+| P1-002 | Python SDK スケルトン作成 | `agentbox/` ディレクトリ構成、`pyproject.toml` (maturin)、`__init__.py` 作成 | `[x]` | - |
+| P1-003 | CI パイプライン構築 | GitHub Actions で Rust build + test、Python lint + test を実行 | `[x]` | P1-001, P1-002 |
+| P1-004 | 開発環境ドキュメント | `CONTRIBUTING.md` に開発セットアップ手順を記載 | `[x]` | P1-001 |
 
 ### 1.2 Wasmtime ランタイム統合
 
@@ -272,4 +272,4 @@
 
 > このセクションは実装中に発見した課題やメモを記録します
 
-- (記録予定)
+- (2025-01-11) Task 1.1 完了。Python 3.14 環境でのビルドには `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` が必要。

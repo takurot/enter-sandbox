@@ -33,8 +33,8 @@ EnterSandBoxは、入力されたコードと依存関係を解析し、最適�
 graph TD
     UserCode[User Code / Agent Action] --> Router[Adaptive Runtime Router]
     
-    Router -->|Logic / Text Processing| Tier1[Tier 1: Nano-Sandbox]
-    Router -->|Data Science / Heavy Compute| Tier2[Tier 2: Heavy-Sandbox]
+    Router -->|Logic / Text Processing| Tier1["Tier 1: Nano-Sandbox"]
+    Router -->|Data Science / Heavy Compute| Tier2["Tier 2: Heavy-Sandbox"]
     
     subgraph "Tier 1: Nano-Sandbox (Wasm)"
         WasmRuntime[Wasmtime Runtime]

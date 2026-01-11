@@ -51,8 +51,8 @@ Revolutionizes the developer experience (DX) with advanced debugging capabilitie
 graph TD
     UserCode[User Code / Agent Action] --> Router[Adaptive Runtime Router]
     
-    Router -->|Logic / Text Processing| Tier1[Tier 1: Nano-Sandbox (Wasm)]
-    Router -->|Data Science / Heavy Compute| Tier2[Tier 2: Heavy-Sandbox (MicroVM)]
+    Router -->|Logic / Text Processing| Tier1["Tier 1: Nano-Sandbox (Wasm)"]
+    Router -->|Data Science / Heavy Compute| Tier2["Tier 2: Heavy-Sandbox (MicroVM)"]
     
     subgraph Governance
         Sidecar[Network DLP Sidecar]

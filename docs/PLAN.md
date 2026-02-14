@@ -112,6 +112,7 @@
 - (2026-02-14) P1-032 完了。VirtualFS を `/sandbox` として preopen し、`runner-wasm` は `/sandbox/code.py` からコードを読み出す経路に更新。
 - (2026-02-14) `docs/PROBLEM.md` の内容を P1-070〜P1-077 として PLAN に移管。以後は PLAN で調査・対処を管理。
 - (2026-02-14) P1-070 完了。`assets/cpython-wasi/manifest.json` に取得元 URL と SHA-256 を固定し、`scripts/prepare_cpython_wasi_assets.py` でローカル/CI 共通の取得・検証フローを導入。
+- (2026-02-14) P1-070 追補。アーカイブ破損時の再取得リカバリ、ダウンロードタイムアウト/リトライ、`scripts/`・`tests/` を含む CI lint を追加して再現環境の運用安定性を強化。
 
 ### 1.8 リリース準備
 

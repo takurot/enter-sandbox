@@ -72,9 +72,9 @@ jobs:
         run: cargo build --target wasm32-wasip1 --release
         working-directory: runner-wasm
       - name: Ruff check
-        run: ruff check python/
+        run: ruff check python/ scripts/ tests/
       - name: Ruff format
-        run: ruff format python/ --check
+        run: ruff format python/ scripts/ tests/ --check
       - name: Build & Install
         run: pip install .
       - name: Python tests

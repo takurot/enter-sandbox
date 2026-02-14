@@ -20,9 +20,11 @@ python3 scripts/prepare_cpython_wasi_assets.py
 The script performs:
 
 1. Download to `assets/cpython-wasi/downloads/` when missing.
-2. SHA-256 verification against the manifest.
-3. Extraction to `assets/cpython-wasi/runtime/`.
-4. Post-extract verification for pinned files (including `python.wasm` hash).
+2. Download with timeout + retry for transient network failures.
+3. SHA-256 (and size when present) verification against the manifest.
+4. If cached archive verification fails, remove it and re-download once.
+5. Extraction to `assets/cpython-wasi/runtime/`.
+6. Post-extract verification for pinned files (including `python.wasm` hash).
 
 ## Verify only (no download/extract)
 

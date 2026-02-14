@@ -119,3 +119,54 @@ def test_prepare_cpython_wasi_assets_check_only_requires_existing_archive(tmp_pa
     run = subprocess.run(command, capture_output=True, text=True)
     assert run.returncode != 0
     assert "Archive not found" in run.stderr
+
+
+def test_prepare_cpython_wasi_assets_recovers_from_corrupt_cached_archive(tmp_path: Path):
+    source_archive = _create_payload_archive(tmp_path)
+    manifest_path = _write_manifest(tmp_path, source_archive)
+    cache_dir = tmp_path / "downloads"
+    extract_dir = tmp_path / "runtime"
+    cache_dir.mkdir(parents=True)
+
+    cached_archive = cache_dir / "test-runtime.zip"
+    cached_archive.write_bytes(b"corrupt")
+
+    command = [
+        sys.executable,
+        str(SCRIPT_PATH),
+        "--manifest",
+        str(manifest_path),
+        "--cache-dir",
+        str(cache_dir),
+        "--extract-dir",
+        str(extract_dir),
+    ]
+    run = subprocess.run(command, capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    expected_archive_sha = manifest["asset"]["archive"]["sha256"]
+    assert _sha256(cached_archive) == expected_archive_sha
+
+
+def test_prepare_cpython_wasi_assets_rejects_non_positive_download_timeout(tmp_path: Path):
+    source_archive = _create_payload_archive(tmp_path)
+    manifest_path = _write_manifest(tmp_path, source_archive)
+    cache_dir = tmp_path / "downloads"
+    extract_dir = tmp_path / "runtime"
+
+    command = [
+        sys.executable,
+        str(SCRIPT_PATH),
+        "--manifest",
+        str(manifest_path),
+        "--cache-dir",
+        str(cache_dir),
+        "--extract-dir",
+        str(extract_dir),
+        "--download-timeout-seconds",
+        "0",
+    ]
+    run = subprocess.run(command, capture_output=True, text=True)
+    assert run.returncode != 0
+    assert "must be greater than 0" in run.stderr

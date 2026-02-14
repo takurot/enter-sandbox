@@ -8,12 +8,26 @@ import hashlib
 import json
 import shutil
 import sys
+import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable, List, Optional
 
 BUFFER_SIZE = 1024 * 1024
+DEFAULT_DOWNLOAD_TIMEOUT_SECONDS = 30
+DEFAULT_DOWNLOAD_ATTEMPTS = 3
+
+
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be an integer") from error
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return parsed
 
 
 def parse_args() -> argparse.Namespace:
@@ -56,6 +70,22 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Force re-download/re-extract even if files already exist.",
     )
+    parser.add_argument(
+        "--download-timeout-seconds",
+        type=positive_int,
+        default=DEFAULT_DOWNLOAD_TIMEOUT_SECONDS,
+        help=(
+            "Per-attempt timeout for archive download in seconds (default: {})".format(
+                DEFAULT_DOWNLOAD_TIMEOUT_SECONDS
+            )
+        ),
+    )
+    parser.add_argument(
+        "--download-attempts",
+        type=positive_int,
+        default=DEFAULT_DOWNLOAD_ATTEMPTS,
+        help=("Max attempts for archive download (default: {})".format(DEFAULT_DOWNLOAD_ATTEMPTS)),
+    )
     return parser.parse_args()
 
 
@@ -70,16 +100,48 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def download_file(url: str, destination: Path) -> None:
+def download_file(url: str, destination: Path, timeout_seconds: int, attempts: int) -> None:
     destination.parent.mkdir(parents=True, exist_ok=True)
     request = urllib.request.Request(url, headers={"User-Agent": "enter-sandbox-p1-070"})
 
-    with urllib.request.urlopen(request) as response, destination.open("wb") as out_file:
-        while True:
-            chunk = response.read(BUFFER_SIZE)
-            if not chunk:
-                break
-            out_file.write(chunk)
+    for attempt_index in range(1, attempts + 1):
+        try:
+            with urllib.request.urlopen(
+                request, timeout=timeout_seconds
+            ) as response, destination.open("wb") as out_file:
+                while True:
+                    chunk = response.read(BUFFER_SIZE)
+                    if not chunk:
+                        break
+                    out_file.write(chunk)
+            return
+        except (OSError, TimeoutError, urllib.error.URLError) as error:
+            destination.unlink(missing_ok=True)
+            if attempt_index >= attempts:
+                raise RuntimeError(
+                    "Failed to download {} after {} attempts: {}".format(url, attempts, error)
+                ) from error
+            print(
+                "[prepare-cpython-wasi] download attempt {}/{} failed: {} (retrying)".format(
+                    attempt_index, attempts, error
+                )
+            )
+            time.sleep(min(2.0, attempt_index * 0.2))
+
+
+def verify_archive(archive_path: Path, expected_hash: str, expected_size: Optional[int]) -> None:
+    if expected_size is not None:
+        actual_size = archive_path.stat().st_size
+        if actual_size != expected_size:
+            raise RuntimeError(
+                "Archive size mismatch: expected={}, actual={}".format(expected_size, actual_size)
+            )
+
+    actual_hash = sha256_file(archive_path)
+    if actual_hash != expected_hash:
+        raise RuntimeError(
+            "Archive SHA256 mismatch: expected={}, actual={}".format(expected_hash, actual_hash)
+        )
 
 
 def ensure_safe_members(members: Iterable[zipfile.ZipInfo]) -> None:
@@ -120,6 +182,43 @@ def load_manifest(manifest_path: Path) -> Dict[str, object]:
         return json.load(handle)
 
 
+def ensure_archive(
+    archive_path: Path,
+    source_url: str,
+    expected_hash: str,
+    expected_size: Optional[int],
+    check_only: bool,
+    timeout_seconds: int,
+    attempts: int,
+) -> None:
+    if not archive_path.exists():
+        if check_only:
+            raise RuntimeError("Archive not found in --check-only mode: {}".format(archive_path))
+        print("[prepare-cpython-wasi] downloading {}".format(source_url))
+        download_file(source_url, archive_path, timeout_seconds, attempts)
+
+    try:
+        verify_archive(archive_path, expected_hash, expected_size)
+        return
+    except RuntimeError as error:
+        if check_only:
+            raise
+
+        print("[prepare-cpython-wasi] cached archive mismatch: {} (re-downloading)".format(error))
+        archive_path.unlink(missing_ok=True)
+        download_file(source_url, archive_path, timeout_seconds, attempts)
+
+    try:
+        verify_archive(archive_path, expected_hash, expected_size)
+    except RuntimeError as error:
+        archive_path.unlink(missing_ok=True)
+        raise RuntimeError(
+            "Archive verification failed after re-download. Removed {}: {}".format(
+                archive_path, error
+            )
+        ) from error
+
+
 def prepare_assets(args: argparse.Namespace) -> None:
     manifest_path = args.manifest.resolve()
     manifest_dir = manifest_path.parent
@@ -131,6 +230,7 @@ def prepare_assets(args: argparse.Namespace) -> None:
 
     archive_name = archive["file_name"]
     archive_sha256 = archive["sha256"]
+    archive_size_bytes = archive.get("size_bytes")
     source_url = source["url"]
     extract_subdir = extract["directory"]
     expected_files = extract["expected_files"]
@@ -142,26 +242,15 @@ def prepare_assets(args: argparse.Namespace) -> None:
     if args.force and archive_path.exists() and not args.check_only:
         archive_path.unlink()
 
-    if not archive_path.exists():
-        if args.check_only:
-            raise RuntimeError("Archive not found in --check-only mode: {}".format(archive_path))
-        print("[prepare-cpython-wasi] downloading {}".format(source_url))
-        download_file(source_url, archive_path)
-
-    actual_archive_hash = sha256_file(archive_path)
-    if actual_archive_hash != archive_sha256:
-        if args.check_only:
-            raise RuntimeError(
-                "Archive SHA256 mismatch: expected={}, actual={}".format(
-                    archive_sha256, actual_archive_hash
-                )
-            )
-        archive_path.unlink(missing_ok=True)
-        raise RuntimeError(
-            "Archive hash mismatch. Removed {} to avoid non-deterministic input.".format(
-                archive_path
-            )
-        )
+    ensure_archive(
+        archive_path=archive_path,
+        source_url=source_url,
+        expected_hash=archive_sha256,
+        expected_size=archive_size_bytes,
+        check_only=args.check_only,
+        timeout_seconds=args.download_timeout_seconds,
+        attempts=args.download_attempts,
+    )
 
     if not args.no_extract:
         should_extract = args.force or not extract_dir.exists()

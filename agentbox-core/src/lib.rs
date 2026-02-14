@@ -58,7 +58,8 @@ impl Sandbox {
     fn run(&self, code: String) -> PyResult<String> {
         let memory_bytes = self.config.memory_limit_mb.map(|mb| mb * 1024 * 1024);
 
-        let session = runtime::WasmSession::new(memory_bytes, &code);
+        let session = runtime::WasmSession::new(memory_bytes, &code, &self.vfs)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         let linker = self
             .runtime
             .create_linker()
@@ -90,20 +91,19 @@ impl Sandbox {
             .get_typed_func::<(), ()>(&mut store, "_start")
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        // start.call(&mut store, ()) ... map error
-        match start.call(&mut store, ()) {
-            Ok(_) => {}
-            Err(e) => {
-                // Capture stderr?
-                // Or return output anyway?
-                // Usually output is present even on error.
-                eprintln!("Execution error: {}", e);
-            }
+        start
+            .call(&mut store, ())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+        let stdout = store.data().stdout_pipe.contents();
+        let stderr = store.data().stderr_pipe.contents();
+
+        let mut combined = String::from_utf8_lossy(stdout.as_ref()).to_string();
+        if !stderr.is_empty() {
+            combined.push_str(&String::from_utf8_lossy(stderr.as_ref()));
         }
 
-        // Get Output
-        let output_lock = store.data().stdout_buf.read().unwrap();
-        Ok(String::from_utf8_lossy(&output_lock).to_string())
+        Ok(combined)
     }
 
     // Config getter

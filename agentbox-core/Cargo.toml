@@ -16,5 +16,5 @@ wasmtime = "29.0"
 wasmtime-wasi = "29.0"
 wasi-common = "29.0"
 anyhow = "1.0"
-
+tempfile = "3.14"
 

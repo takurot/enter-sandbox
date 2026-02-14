@@ -68,21 +68,21 @@ graph TD
 Users can utilize a unified API without being conscious of the underlying runtime.
 
 ```python
-from agentbox import Sandbox
+from agentbox import Sandbox, SandboxConfig
 
-# Automatic routing mode
-box = Sandbox()
+config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000)
+box = Sandbox(config)
 
-code = """
-import pandas as pd
-# Automatically selects Tier 2 (MicroVM)
-df = pd.DataFrame({"A": [1, 2, 3]})
-print(df.describe())
-"""
-
-result = box.run(code)
-print(result.stdout)
+result = box.run("print('Hello from sandbox')")
+print(result)
 ```
+
+## 🧾 SDK API (Current)
+
+- `Sandbox(config: Optional[SandboxConfig] = None)`
+- `Sandbox.run(code: str) -> str`
+- `Sandbox.config -> SandboxConfig`
+- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int])`
 
 ## 🗺 Roadmap
 

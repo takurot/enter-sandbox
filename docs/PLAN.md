@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2025-01-11  
+> **最終更新:** 2026-02-14  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -56,7 +56,7 @@
 | --- | --- | --- | --- | --- |
 | P1-030 | VirtualFS 設計 | インメモリ VFS のデータ構造設計（inode テーブル、ディレクトリツリー） | `[x]` | P1-001 |
 | P1-031 | VirtualFS 実装 | `open`, `read`, `write`, `mkdir`, `stat` 等の基本操作実装 | `[x]` | P1-030 |
-| P1-032 | WASI との統合 | `wasmtime_wasi::WasiCtxBuilder` に VirtualFS をマウント | `[ ]` | P1-011, P1-031 |
+| P1-032 | WASI との統合 | `wasmtime_wasi::WasiCtxBuilder` に VirtualFS をマウント | `[x]` | P1-011, P1-031 |
 | P1-033 | VirtualFS テスト | ファイル作成・読み書き・削除のユニットテスト | `[x]` | P1-032 |
 
 ### 1.5 Python SDK (agentbox)
@@ -67,7 +67,7 @@
 | P1-041 | `Sandbox.run()` API | コード文字列を受け取り `SandboxResult(stdout, stderr, exit_code)` を返す | `[x]` | P1-040 |
 | P1-042 | `SandboxConfig` 実装 | `timeout_ms`, `memory_limit_mb`, `allowed_modules` 設定項目 | `[x]` | P1-041 |
 | P1-043 | 型ヒント (`.pyi`) | Python の型チェック対応のためスタブファイル作成 | `[x]` | P1-041 |
-| P1-044 | SDK ドキュメント | README.md に使用例、API リファレンス記載 | `[ ]` | P1-042 |
+| P1-044 | SDK ドキュメント | README.md に使用例、API リファレンス記載 | `[x]` | P1-042 |
 
 ### 1.6 テスト & ベンチマーク (Phase 1)
 
@@ -94,8 +94,9 @@
 > このセクションは実装中に発見した課題やメモを記録します
 
 - (2025-01-11) Task 1.1 完了。Python 3.14 環境でのビルドには `PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1` が必要。
+- (2026-02-14) P1-032/P1-044 を更新。WASI preopen で VirtualFS を接続し、README に現行 SDK API を追記。
 - (2025-01-11) Task 1.2-1.6 実装。RustPython の WASM ビルドがネットワーク制限により失敗するため、Dummy Runner でパイプラインを検証。
-- (2025-01-11) VirtualFS は実装したが WASI へのマウント（P1-032）は未統合。
+- (2026-02-14) P1-032 完了。VirtualFS を `/sandbox` として preopen し、`runner-wasm` は `/sandbox/code.py` からコードを読み出す経路に更新。
 
 ### 1.7 リリース準備
 

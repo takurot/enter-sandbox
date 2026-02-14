@@ -37,3 +37,7 @@ coverage.xml
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Reproducible CPython WASI assets (P1-070)
+assets/cpython-wasi/downloads/
+assets/cpython-wasi/runtime/

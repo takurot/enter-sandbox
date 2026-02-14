@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "asset": {
+    "name": "cpython-wasi-runtime",
+    "version": "3.13.12",
+    "source": {
+      "type": "github-release",
+      "repository": "brettcannon/cpython-wasi-build",
+      "tag": "v3.13.12",
+      "asset_name": "python-3.13.12-wasi_sdk-24.zip",
+      "url": "https://github.com/brettcannon/cpython-wasi-build/releases/download/v3.13.12/python-3.13.12-wasi_sdk-24.zip"
+    },
+    "archive": {
+      "file_name": "python-3.13.12-wasi_sdk-24.zip",
+      "sha256": "a83d0a761e67e0bc3cea4a742145dbbea236429b056115ce2c3174157ac206c9",
+      "size_bytes": 13715070
+    },
+    "extract": {
+      "directory": "runtime",
+      "expected_files": [
+        {
+          "path": "python.wasm",
+          "sha256": "875dd63414642fbeda8c45517777b891d5936b304d261879e3dcc1b201daf5d9"
+        },
+        {
+          "path": "lib/python3.13/os.py",
+          "sha256": "5e640713e89023372f493054ccedb7512ee27eb3ea6461677bc8c27c640d0605"
+        },
+        {
+          "path": "lib/python3.13/json/__init__.py",
+          "sha256": "3b5abc6441252283e4b83dd00317430c0c0145343a8f48274f2c4fac3d856631"
+        }
+      ]
+    }
+  }
+}

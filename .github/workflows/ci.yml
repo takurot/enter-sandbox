@@ -19,6 +19,13 @@ jobs:
           targets: wasm32-wasip1
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+      - name: Cache CPython WASI assets
+        uses: actions/cache@v4
+        with:
+          path: assets/cpython-wasi/downloads
+          key: cpython-wasi-${{ runner.os }}-${{ hashFiles('assets/cpython-wasi/manifest.json') }}
+      - name: Prepare CPython WASI assets
+        run: python3 scripts/prepare_cpython_wasi_assets.py
       - name: Build Runner (Wasm)
         run: cargo build --target wasm32-wasip1 --release
         working-directory: runner-wasm
@@ -50,6 +57,13 @@ jobs:
           targets: wasm32-wasip1
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+      - name: Cache CPython WASI assets
+        uses: actions/cache@v4
+        with:
+          path: assets/cpython-wasi/downloads
+          key: cpython-wasi-${{ runner.os }}-${{ hashFiles('assets/cpython-wasi/manifest.json') }}
+      - name: Prepare CPython WASI assets
+        run: python scripts/prepare_cpython_wasi_assets.py
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip

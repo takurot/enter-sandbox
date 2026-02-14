@@ -83,7 +83,7 @@
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-070 | CPython WASI 再現環境整備 | `assets/cpython-wasi` の取得手順・検証ハッシュを定義し、ローカル/CI で同一入力を再現できる状態を作る | `[ ]` | P1-001 |
+| P1-070 | CPython WASI 再現環境整備 | `assets/cpython-wasi` の取得手順・検証ハッシュを定義し、ローカル/CI で同一入力を再現できる状態を作る | `[x]` | P1-001 |
 | P1-071 | 再現テストの固定化 | 「CLI では成功・SDK では失敗」を再現する最小ケースを Rust/Python テストとして追加 | `[ ]` | P1-070 |
 | P1-072 | CLI/SDK 差分調査 | `argv`, `env`, `preopen`, stdio, clocks/random を観点に WASI コンテキスト差分を可視化 | `[ ]` | P1-071 |
 | P1-073 | トレース強化 | `_start` 失敗時の wasm backtrace 収集・ログ整備（必要ならデバッグビルド）を実装 | `[ ]` | P1-072 |
@@ -111,6 +111,7 @@
 - (2025-01-11) Task 1.2-1.6 実装。RustPython の WASM ビルドがネットワーク制限により失敗するため、Dummy Runner でパイプラインを検証。
 - (2026-02-14) P1-032 完了。VirtualFS を `/sandbox` として preopen し、`runner-wasm` は `/sandbox/code.py` からコードを読み出す経路に更新。
 - (2026-02-14) `docs/PROBLEM.md` の内容を P1-070〜P1-077 として PLAN に移管。以後は PLAN で調査・対処を管理。
+- (2026-02-14) P1-070 完了。`assets/cpython-wasi/manifest.json` に取得元 URL と SHA-256 を固定し、`scripts/prepare_cpython_wasi_assets.py` でローカル/CI 共通の取得・検証フローを導入。
 
 ### 1.8 リリース準備
 

@@ -67,21 +67,21 @@ graph TD
 ユーザーは背後のランタイムを意識することなく、統一されたAPIを利用できます。
 
 ```python
-from agentbox import Sandbox
+from agentbox import Sandbox, SandboxConfig
 
-# 自動ルーティングモード
-box = Sandbox()
+config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000, max_output_bytes=8 * 1024 * 1024)
+box = Sandbox(config)
 
-code = """
-import pandas as pd
-# 自動的に Tier 2 (MicroVM) が選択されます
-df = pd.DataFrame({"A": [1, 2, 3]})
-print(df.describe())
-"""
-
-result = box.run(code)
-print(result.stdout)
+result = box.run("print('Hello from sandbox')")
+print(result)
 ```
+
+## 🧾 SDK API（現行実装）
+
+- `Sandbox(config: Optional[SandboxConfig] = None)`
+- `Sandbox.run(code: str) -> str`
+- `Sandbox.config -> SandboxConfig`
+- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
 
 ## 🗺 Roadmap
 

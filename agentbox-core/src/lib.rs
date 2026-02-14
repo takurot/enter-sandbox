@@ -13,16 +13,23 @@ pub struct SandboxConfig {
     memory_limit_mb: Option<usize>,
     #[pyo3(get, set)]
     timeout_ms: Option<u64>,
+    #[pyo3(get, set)]
+    max_output_bytes: Option<usize>,
 }
 
 #[pymethods]
 impl SandboxConfig {
     #[new]
-    #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None))]
-    fn new(memory_limit_mb: Option<usize>, timeout_ms: Option<u64>) -> Self {
+    #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None, max_output_bytes=None))]
+    fn new(
+        memory_limit_mb: Option<usize>,
+        timeout_ms: Option<u64>,
+        max_output_bytes: Option<usize>,
+    ) -> Self {
         SandboxConfig {
             memory_limit_mb,
             timeout_ms,
+            max_output_bytes,
         }
     }
 }
@@ -43,6 +50,7 @@ impl Sandbox {
         let config = config.unwrap_or(SandboxConfig {
             memory_limit_mb: Some(512),
             timeout_ms: Some(10000),
+            max_output_bytes: Some(runtime::DEFAULT_MAX_OUTPUT_BYTES),
         });
 
         let runtime = WasmRuntime::new()
@@ -57,9 +65,11 @@ impl Sandbox {
 
     fn run(&self, code: String) -> PyResult<String> {
         let memory_bytes = self.config.memory_limit_mb.map(|mb| mb * 1024 * 1024);
+        let max_output_bytes = self.config.max_output_bytes;
 
-        let session = runtime::WasmSession::new(memory_bytes, &code, &self.vfs)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+        let session =
+            runtime::WasmSession::new(memory_bytes, max_output_bytes, &code, &self.vfs)
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
         let linker = self
             .runtime
             .create_linker()
@@ -91,8 +101,22 @@ impl Sandbox {
             .get_typed_func::<(), ()>(&mut store, "_start")
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        start
-            .call(&mut store, ())
+        if let Err(error) = start.call(&mut store, ()) {
+            if store.data().output_limit_exceeded() {
+                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Execution output exceeded max_output_bytes={} bytes",
+                    store.data().output_limit_bytes()
+                )));
+            }
+
+            return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                error.to_string(),
+            ));
+        }
+
+        store
+            .data()
+            .sync_back_to_vfs(&self.vfs)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let stdout = store.data().stdout_pipe.contents();

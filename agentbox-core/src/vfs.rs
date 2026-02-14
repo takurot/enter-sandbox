@@ -61,6 +61,18 @@ impl VirtualFS {
         entries.sort_by(|left, right| left.0.cmp(&right.0));
         entries
     }
+
+    pub fn replace_entries(&self, entries: Vec<(String, Vec<u8>)>) -> Result<()> {
+        let mut next = HashMap::new();
+        for (path, content) in entries {
+            let normalized = normalize_path(&path)?;
+            next.insert(normalized, content);
+        }
+
+        let mut files = self.files.write().unwrap();
+        *files = next;
+        Ok(())
+    }
 }
 
 fn normalize_path(path: &str) -> Result<String> {
@@ -112,5 +124,16 @@ mod tests {
         let fs = VirtualFS::new();
         assert!(fs.write_file("../secret.txt", b"x").is_err());
         assert!(!fs.exists("../secret.txt"));
+    }
+
+    #[test]
+    fn test_vfs_replace_entries_replaces_entire_state() {
+        let fs = VirtualFS::new();
+        fs.write_file("old.txt", b"old").unwrap();
+        fs.replace_entries(vec![("new.txt".to_string(), b"new".to_vec())])
+            .unwrap();
+
+        assert!(!fs.exists("old.txt"));
+        assert_eq!(fs.read_file("new.txt").unwrap(), b"new");
     }
 }

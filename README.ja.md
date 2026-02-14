@@ -69,7 +69,7 @@ graph TD
 ```python
 from agentbox import Sandbox, SandboxConfig
 
-config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000)
+config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000, max_output_bytes=8 * 1024 * 1024)
 box = Sandbox(config)
 
 result = box.run("print('Hello from sandbox')")
@@ -81,7 +81,7 @@ print(result)
 - `Sandbox(config: Optional[SandboxConfig] = None)`
 - `Sandbox.run(code: str) -> str`
 - `Sandbox.config -> SandboxConfig`
-- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int])`
+- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
 
 ## 🗺 Roadmap
 

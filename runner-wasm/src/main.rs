@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::{Read, Write};
 
-const CODE_PATH: &str = "/sandbox/code.py";
+const CODE_PATH: &str = "/sandbox/__agentbox_internal__/code.py";
 
 fn read_code() -> String {
     if let Ok(code) = fs::read_to_string(CODE_PATH) {

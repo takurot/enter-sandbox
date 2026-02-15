@@ -27,6 +27,13 @@ def _parse_context_diff_report(report: str):
     return rows
 
 
+def _extract_frames_count(error_text: str) -> int:
+    for line in error_text.splitlines():
+        if line.startswith("wasm_backtrace.frames="):
+            return int(line.split("=", maxsplit=1)[1])
+    raise AssertionError("wasm_backtrace.frames line not found")
+
+
 def test_cpython_wasi_cli_success_but_sdk_failure():
     cli_success, cli_stdout, cli_stderr, cli_error = _run_profile("cli")
     sdk_success, _, _, _ = _run_profile("sdk")
@@ -50,7 +57,9 @@ def test_cpython_wasi_sdk_failure_includes_structured_trace_log():
     assert sdk_error is not None
     assert "trace.capture=wasm-backtrace-v1" in sdk_error
     assert "start.call.error" in sdk_error
-    assert "wasm_backtrace.frames" in sdk_error
+    assert "trace.status=attached" in sdk_error
+    assert "wasm_backtrace.note=not-attached" not in sdk_error
+    assert _extract_frames_count(sdk_error) > 0
 
 
 def test_cpython_wasi_context_diff_report_includes_required_dimensions():

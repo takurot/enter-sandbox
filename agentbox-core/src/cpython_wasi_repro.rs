@@ -288,6 +288,7 @@ fn format_start_call_failure(error: &anyhow::Error) -> String {
 
     match error.downcast_ref::<WasmBacktrace>() {
         Some(backtrace) => {
+            lines.push("trace.status=attached".to_string());
             lines.push(format!(
                 "wasm_backtrace.frames={}",
                 backtrace.frames().len()
@@ -306,6 +307,7 @@ fn format_start_call_failure(error: &anyhow::Error) -> String {
             }
         }
         None => {
+            lines.push("trace.status=missing".to_string());
             lines.push("wasm_backtrace.frames=0".to_string());
             lines.push("wasm_backtrace.note=not-attached".to_string());
         }
@@ -449,7 +451,15 @@ mod tests {
             .expect("error details should be present when _start fails");
         assert!(error.contains("trace.capture=wasm-backtrace-v1"));
         assert!(error.contains("start.call.error"));
-        assert!(error.contains("wasm_backtrace.frames"));
+        assert!(error.contains("trace.status=attached"));
+        assert!(!error.contains("wasm_backtrace.note=not-attached"));
+
+        let frames = error
+            .lines()
+            .find_map(|line| line.strip_prefix("wasm_backtrace.frames="))
+            .and_then(|value| value.parse::<usize>().ok())
+            .expect("wasm_backtrace.frames should be present and parseable");
+        assert!(frames > 0, "expected at least one wasm backtrace frame");
     }
 
     #[test]

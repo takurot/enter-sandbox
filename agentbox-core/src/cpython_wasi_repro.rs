@@ -7,6 +7,11 @@ use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 
 const DEFAULT_REPRO_CODE: &str = "import json\nprint('ok')\n";
 const OUTPUT_LIMIT_BYTES: usize = 1024 * 1024;
+const RUNTIME_HOST_PATH_LABEL: &str = "<assets/cpython-wasi/runtime>";
+const STATUS_SAME: &str = "same";
+const STATUS_DIFFERENT: &str = "different";
+const STATUS_SAME_SOURCE: &str = "same-source";
+const STATUS_RUNTIME_GENERATED: &str = "runtime-generated";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ReproProfile {
@@ -46,6 +51,15 @@ struct ReproSession {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+struct DiffRow {
+    field: &'static str,
+    cli: String,
+    sdk: String,
+    status: &'static str,
+    note: &'static str,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 struct WasiContextView {
     argv: Vec<String>,
     env: Vec<(String, String)>,
@@ -58,15 +72,14 @@ struct WasiContextView {
     monotonic_clock: String,
     secure_random: String,
     insecure_random: String,
-    insecure_random_seed: String,
 }
 
 impl WasiContextView {
-    fn for_profile(profile: ReproProfile, runtime_dir: &Path) -> Self {
+    fn for_profile(profile: ReproProfile) -> Self {
         Self {
             argv: Vec::new(),
             env: Vec::new(),
-            preopen_host_path: runtime_dir.display().to_string(),
+            preopen_host_path: RUNTIME_HOST_PATH_LABEL.to_string(),
             preopen_guest_path: profile.guest_preopen_path().to_string(),
             stdin: "memory-input-pipe(code via stdin)".to_string(),
             stdout: format!("memory-output-pipe(limit={} bytes)", OUTPUT_LIMIT_BYTES),
@@ -75,7 +88,6 @@ impl WasiContextView {
             monotonic_clock: "host-default".to_string(),
             secure_random: "wasi-default-secure-rng".to_string(),
             insecure_random: "wasi-default-insecure-rng".to_string(),
-            insecure_random_seed: "wasi-default-random-seed".to_string(),
         }
     }
 }
@@ -84,60 +96,107 @@ pub fn default_code() -> &'static str {
     DEFAULT_REPRO_CODE
 }
 
-pub fn context_diff_report() -> String {
-    let runtime_dir = cpython_runtime_dir();
-    let cli = WasiContextView::for_profile(ReproProfile::Cli, &runtime_dir);
-    let sdk = WasiContextView::for_profile(ReproProfile::Sdk, &runtime_dir);
+fn context_diff_rows() -> Vec<DiffRow> {
+    let cli = WasiContextView::for_profile(ReproProfile::Cli);
+    let sdk = WasiContextView::for_profile(ReproProfile::Sdk);
 
-    let rows = vec![
-        ("argv", format_args(&cli.argv), format_args(&sdk.argv)),
-        ("env", format_env(&cli.env), format_env(&sdk.env)),
-        (
+    vec![
+        compare_row("argv", format_args(&cli.argv), format_args(&sdk.argv)),
+        compare_row("env", format_env(&cli.env), format_env(&sdk.env)),
+        compare_row(
             "preopen.host_path",
             cli.preopen_host_path.clone(),
             sdk.preopen_host_path.clone(),
         ),
-        (
+        compare_row(
             "preopen.guest_path",
             cli.preopen_guest_path.clone(),
             sdk.preopen_guest_path.clone(),
         ),
-        ("stdio.stdin", cli.stdin.clone(), sdk.stdin.clone()),
-        ("stdio.stdout", cli.stdout.clone(), sdk.stdout.clone()),
-        ("stdio.stderr", cli.stderr.clone(), sdk.stderr.clone()),
-        ("clock.wall", cli.wall_clock.clone(), sdk.wall_clock.clone()),
-        (
+        compare_row("stdio.stdin", cli.stdin.clone(), sdk.stdin.clone()),
+        compare_row("stdio.stdout", cli.stdout.clone(), sdk.stdout.clone()),
+        compare_row("stdio.stderr", cli.stderr.clone(), sdk.stderr.clone()),
+        same_source_row(
+            "clock.wall",
+            cli.wall_clock.clone(),
+            sdk.wall_clock.clone(),
+            "Both profiles use WasiCtxBuilder default host wall clock.",
+        ),
+        same_source_row(
             "clock.monotonic",
             cli.monotonic_clock.clone(),
             sdk.monotonic_clock.clone(),
+            "Both profiles use WasiCtxBuilder default host monotonic clock.",
         ),
-        (
+        same_source_row(
             "random.secure",
             cli.secure_random.clone(),
             sdk.secure_random.clone(),
+            "Both profiles use WasiCtxBuilder default secure RNG source.",
         ),
-        (
+        same_source_row(
             "random.insecure",
             cli.insecure_random.clone(),
             sdk.insecure_random.clone(),
+            "Both profiles use WasiCtxBuilder default insecure RNG source.",
         ),
-        (
+        runtime_generated_row(
             "random.insecure_seed",
-            cli.insecure_random_seed.clone(),
-            sdk.insecure_random_seed.clone(),
+            "<generated-per-context>".to_string(),
+            "<generated-per-context>".to_string(),
+            "WasiCtxBuilder generates a fresh seed per context; values are intentionally not compared.",
         ),
-    ];
+    ]
+}
 
-    let mut report = String::from("field | cli | sdk | status\n--- | --- | --- | ---\n");
-    for (field, cli_value, sdk_value) in rows {
-        let status = if cli_value == sdk_value {
-            "same"
-        } else {
-            "different"
-        };
+fn compare_row(field: &'static str, cli: String, sdk: String) -> DiffRow {
+    let status = if cli == sdk {
+        STATUS_SAME
+    } else {
+        STATUS_DIFFERENT
+    };
+    DiffRow {
+        field,
+        cli,
+        sdk,
+        status,
+        note: "",
+    }
+}
+
+fn same_source_row(field: &'static str, cli: String, sdk: String, note: &'static str) -> DiffRow {
+    DiffRow {
+        field,
+        cli,
+        sdk,
+        status: STATUS_SAME_SOURCE,
+        note,
+    }
+}
+
+fn runtime_generated_row(
+    field: &'static str,
+    cli: String,
+    sdk: String,
+    note: &'static str,
+) -> DiffRow {
+    DiffRow {
+        field,
+        cli,
+        sdk,
+        status: STATUS_RUNTIME_GENERATED,
+        note,
+    }
+}
+
+pub fn context_diff_report() -> String {
+    let rows = context_diff_rows();
+    let mut report =
+        String::from("field | cli | sdk | status | note\n--- | --- | --- | --- | ---\n");
+    for row in rows {
         report.push_str(&format!(
-            "{} | {} | {} | {}\n",
-            field, cli_value, sdk_value, status
+            "{} | {} | {} | {} | {}\n",
+            row.field, row.cli, row.sdk, row.status, row.note
         ));
     }
 
@@ -166,7 +225,7 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
     let stdout_pipe = MemoryOutputPipe::new(OUTPUT_LIMIT_BYTES);
     let stderr_pipe = MemoryOutputPipe::new(OUTPUT_LIMIT_BYTES);
 
-    let context_view = WasiContextView::for_profile(profile, &runtime_dir);
+    let context_view = WasiContextView::for_profile(profile);
     let mut builder = WasiCtxBuilder::new();
     configure_wasi_builder(
         &mut builder,
@@ -304,6 +363,14 @@ mod tests {
         )
     }
 
+    fn row_by_field<'a>(rows: &'a [DiffRow], field: &str) -> &'a DiffRow {
+        rows.iter()
+            .find(|row| row.field == field)
+            .unwrap_or_else(|| {
+                panic!("missing diff row for field: {field}");
+            })
+    }
+
     #[test]
     fn test_cpython_wasi_cli_profile_succeeds() {
         let result = run(ReproProfile::Cli, default_code()).unwrap();
@@ -333,26 +400,54 @@ mod tests {
 
     #[test]
     fn test_cpython_wasi_context_diff_report_includes_required_dimensions() {
-        let report = context_diff_report();
+        let rows = context_diff_rows();
 
-        assert!(report.contains("argv"));
-        assert!(report.contains("env"));
-        assert!(report.contains("preopen.guest_path"));
-        assert!(report.contains("stdio.stdin"));
-        assert!(report.contains("stdio.stdout"));
-        assert!(report.contains("stdio.stderr"));
-        assert!(report.contains("clock.wall"));
-        assert!(report.contains("clock.monotonic"));
-        assert!(report.contains("random.secure"));
-        assert!(report.contains("random.insecure"));
-        assert!(report.contains("random.insecure_seed"));
+        assert_eq!(row_by_field(&rows, "argv").status, STATUS_SAME);
+        assert_eq!(row_by_field(&rows, "env").status, STATUS_SAME);
+        assert_eq!(row_by_field(&rows, "preopen.host_path").status, STATUS_SAME);
+        assert_eq!(
+            row_by_field(&rows, "preopen.guest_path").status,
+            STATUS_DIFFERENT
+        );
+        assert_eq!(row_by_field(&rows, "stdio.stdin").status, STATUS_SAME);
+        assert_eq!(row_by_field(&rows, "stdio.stdout").status, STATUS_SAME);
+        assert_eq!(row_by_field(&rows, "stdio.stderr").status, STATUS_SAME);
+        assert_eq!(row_by_field(&rows, "clock.wall").status, STATUS_SAME_SOURCE);
+        assert_eq!(
+            row_by_field(&rows, "clock.monotonic").status,
+            STATUS_SAME_SOURCE
+        );
+        assert_eq!(
+            row_by_field(&rows, "random.secure").status,
+            STATUS_SAME_SOURCE
+        );
+        assert_eq!(
+            row_by_field(&rows, "random.insecure").status,
+            STATUS_SAME_SOURCE
+        );
+        assert_eq!(
+            row_by_field(&rows, "random.insecure_seed").status,
+            STATUS_RUNTIME_GENERATED
+        );
     }
 
     #[test]
     fn test_cpython_wasi_context_diff_report_detects_preopen_path_difference() {
-        let report = context_diff_report();
+        let rows = context_diff_rows();
+        let row = row_by_field(&rows, "preopen.guest_path");
 
-        assert!(report.contains("preopen.guest_path"));
-        assert!(report.contains(" | / | /sandbox | different"));
+        assert_eq!(row.cli, "/");
+        assert_eq!(row.sdk, "/sandbox");
+        assert_eq!(row.status, STATUS_DIFFERENT);
+    }
+
+    #[test]
+    fn test_cpython_wasi_context_diff_report_masks_host_runtime_path() {
+        let rows = context_diff_rows();
+        let row = row_by_field(&rows, "preopen.host_path");
+
+        assert_eq!(row.cli, RUNTIME_HOST_PATH_LABEL);
+        assert_eq!(row.sdk, RUNTIME_HOST_PATH_LABEL);
+        assert_eq!(row.status, STATUS_SAME);
     }
 }

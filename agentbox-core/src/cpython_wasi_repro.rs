@@ -18,6 +18,7 @@ const STATUS_RUNTIME_GENERATED: &str = "runtime-generated";
 pub enum ReproProfile {
     Cli,
     Sdk,
+    SdkLegacy,
 }
 
 impl ReproProfile {
@@ -25,14 +26,18 @@ impl ReproProfile {
         match raw {
             "cli" => Ok(Self::Cli),
             "sdk" => Ok(Self::Sdk),
-            _ => bail!("profile must be either 'cli' or 'sdk'"),
+            "sdk-legacy" => Ok(Self::SdkLegacy),
+            _ => bail!("profile must be one of: 'cli', 'sdk', 'sdk-legacy'"),
         }
     }
 
     fn guest_preopen_path(self) -> &'static str {
         match self {
             Self::Cli => "/",
-            Self::Sdk => "/sandbox",
+            // P1-074: Align SDK guest preopen path with CLI to allow CPython to
+            // resolve stdlib modules such as `encodings` from `/lib/python3.13`.
+            Self::Sdk => "/",
+            Self::SdkLegacy => "/sandbox",
         }
     }
 }
@@ -430,8 +435,15 @@ mod tests {
     }
 
     #[test]
-    fn test_cpython_wasi_sdk_profile_fails_with_missing_encodings() {
+    fn test_cpython_wasi_sdk_profile_succeeds_after_runtime_fix() {
         let result = run(ReproProfile::Sdk, default_code()).unwrap();
+        assert!(result.success, "{}", format_details(&result));
+        assert!(result.stdout.lines().any(|line| line.trim() == "ok"));
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_legacy_profile_fails_with_missing_encodings() {
+        let result = run(ReproProfile::SdkLegacy, default_code()).unwrap();
         assert!(!result.success, "{}", format_details(&result));
         assert!(
             result.stderr.contains("No module named 'encodings'"),
@@ -442,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_cpython_wasi_sdk_failure_includes_structured_trace_log() {
-        let result = run(ReproProfile::Sdk, default_code()).unwrap();
+        let result = run(ReproProfile::SdkLegacy, default_code()).unwrap();
         assert!(!result.success, "{}", format_details(&result));
 
         let error = result
@@ -463,12 +475,12 @@ mod tests {
     }
 
     #[test]
-    fn test_cpython_wasi_repro_matches_cli_success_sdk_failure_pattern() {
+    fn test_cpython_wasi_repro_matches_cli_success_sdk_success_pattern() {
         let cli = run(ReproProfile::Cli, default_code()).unwrap();
         let sdk = run(ReproProfile::Sdk, default_code()).unwrap();
 
         assert!(cli.success, "{}", format_details(&cli));
-        assert!(!sdk.success, "{}", format_details(&sdk));
+        assert!(sdk.success, "{}", format_details(&sdk));
     }
 
     #[test]
@@ -480,7 +492,7 @@ mod tests {
         assert_eq!(row_by_field(&rows, "preopen.host_path").status, STATUS_SAME);
         assert_eq!(
             row_by_field(&rows, "preopen.guest_path").status,
-            STATUS_DIFFERENT
+            STATUS_SAME
         );
         assert_eq!(row_by_field(&rows, "stdio.stdin").status, STATUS_SAME);
         assert_eq!(row_by_field(&rows, "stdio.stdout").status, STATUS_SAME);
@@ -505,13 +517,13 @@ mod tests {
     }
 
     #[test]
-    fn test_cpython_wasi_context_diff_report_detects_preopen_path_difference() {
+    fn test_cpython_wasi_context_diff_report_shows_preopen_path_aligned() {
         let rows = context_diff_rows();
         let row = row_by_field(&rows, "preopen.guest_path");
 
         assert_eq!(row.cli, "/");
-        assert_eq!(row.sdk, "/sandbox");
-        assert_eq!(row.status, STATUS_DIFFERENT);
+        assert_eq!(row.sdk, "/");
+        assert_eq!(row.status, STATUS_SAME);
     }
 
     #[test]

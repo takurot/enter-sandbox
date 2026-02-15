@@ -22,6 +22,11 @@ fn _debug_run_cpython_wasi_repro(
     Ok((run.success, run.stdout, run.stderr, run.error))
 }
 
+#[pyfunction]
+fn _debug_describe_cpython_wasi_context_diff() -> String {
+    cpython_wasi_repro::context_diff_report()
+}
+
 #[pyclass]
 #[derive(Clone)]
 pub struct SandboxConfig {
@@ -159,5 +164,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Sandbox>()?;
     m.add_class::<SandboxConfig>()?;
     m.add_function(pyo3::wrap_pyfunction!(_debug_run_cpython_wasi_repro, m)?)?;
+    m.add_function(pyo3::wrap_pyfunction!(
+        _debug_describe_cpython_wasi_context_diff,
+        m
+    )?)?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
-use wasmtime::{Engine, Linker, Module, Store};
+use wasmtime::{Config, Engine, Linker, Module, Store, WasmBacktrace};
 use wasmtime_wasi::pipe::{MemoryInputPipe, MemoryOutputPipe};
 use wasmtime_wasi::preview1::{self, WasiP1Ctx};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
@@ -8,6 +8,7 @@ use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 const DEFAULT_REPRO_CODE: &str = "import json\nprint('ok')\n";
 const OUTPUT_LIMIT_BYTES: usize = 1024 * 1024;
 const RUNTIME_HOST_PATH_LABEL: &str = "<assets/cpython-wasi/runtime>";
+const TRACE_CAPTURE_MARKER: &str = "trace.capture=wasm-backtrace-v1";
 const STATUS_SAME: &str = "same";
 const STATUS_DIFFERENT: &str = "different";
 const STATUS_SAME_SOURCE: &str = "same-source";
@@ -208,7 +209,7 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
     let wasm_path = runtime_dir.join("python.wasm");
     ensure_runtime_available(&runtime_dir, &wasm_path)?;
 
-    let engine = Engine::default();
+    let engine = create_engine()?;
     let module = Module::from_file(&engine, &wasm_path).with_context(|| {
         format!(
             "Failed to load CPython WASI module: {}",
@@ -253,7 +254,7 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
     let call_result = start.call(&mut store, ());
     let (success, error) = match call_result {
         Ok(()) => (true, None),
-        Err(err) => (false, Some(err.to_string())),
+        Err(err) => (false, Some(format_start_call_failure(&err))),
     };
 
     let stdout = String::from_utf8_lossy(store.data().stdout_pipe.contents().as_ref()).to_string();
@@ -265,6 +266,54 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
         stderr,
         error,
     })
+}
+
+fn create_engine() -> Result<Engine> {
+    let mut config = Config::new();
+    config.wasm_backtrace(true);
+    Engine::new(&config).context("Failed to create Wasmtime engine for CPython WASI repro")
+}
+
+fn format_start_call_failure(error: &anyhow::Error) -> String {
+    let mut lines = vec![
+        TRACE_CAPTURE_MARKER.to_string(),
+        "start.call.error".to_string(),
+        format!("display: {error}"),
+        "chain:".to_string(),
+    ];
+
+    for (index, cause) in error.chain().enumerate() {
+        lines.push(format!("  [{index}] {cause}"));
+    }
+
+    match error.downcast_ref::<WasmBacktrace>() {
+        Some(backtrace) => {
+            lines.push(format!(
+                "wasm_backtrace.frames={}",
+                backtrace.frames().len()
+            ));
+            for (index, frame) in backtrace.frames().iter().enumerate() {
+                let module_name = frame.module().name().unwrap_or("<unknown>");
+                let func_name = frame.func_name().unwrap_or("<unknown>");
+                let module_offset = frame
+                    .module_offset()
+                    .map(|offset| format!("{offset:#x}"))
+                    .unwrap_or_else(|| "<none>".to_string());
+                lines.push(format!(
+                    "  frame[{index}] module={module_name} func={func_name} func_index={} module_offset={module_offset}",
+                    frame.func_index()
+                ));
+            }
+        }
+        None => {
+            lines.push("wasm_backtrace.frames=0".to_string());
+            lines.push("wasm_backtrace.note=not-attached".to_string());
+        }
+    }
+
+    lines.push("debug:".to_string());
+    lines.push(format!("{error:#}"));
+    lines.join("\n")
 }
 
 fn cpython_runtime_dir() -> PathBuf {
@@ -387,6 +436,20 @@ mod tests {
             "{}",
             format_details(&result)
         );
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_failure_includes_structured_trace_log() {
+        let result = run(ReproProfile::Sdk, default_code()).unwrap();
+        assert!(!result.success, "{}", format_details(&result));
+
+        let error = result
+            .error
+            .as_deref()
+            .expect("error details should be present when _start fails");
+        assert!(error.contains("trace.capture=wasm-backtrace-v1"));
+        assert!(error.contains("start.call.error"));
+        assert!(error.contains("wasm_backtrace.frames"));
     }
 
     #[test]

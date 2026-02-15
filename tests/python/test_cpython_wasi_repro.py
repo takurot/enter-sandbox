@@ -43,6 +43,16 @@ def test_cpython_wasi_sdk_failure_reports_missing_encodings():
     assert "No module named 'encodings'" in sdk_stderr
 
 
+def test_cpython_wasi_sdk_failure_includes_structured_trace_log():
+    sdk_success, _, _, sdk_error = _run_profile("sdk")
+
+    assert not sdk_success
+    assert sdk_error is not None
+    assert "trace.capture=wasm-backtrace-v1" in sdk_error
+    assert "start.call.error" in sdk_error
+    assert "wasm_backtrace.frames" in sdk_error
+
+
 def test_cpython_wasi_context_diff_report_includes_required_dimensions():
     rows = _parse_context_diff_report(_core._debug_describe_cpython_wasi_context_diff())
 

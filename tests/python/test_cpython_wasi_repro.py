@@ -34,24 +34,25 @@ def _extract_frames_count(error_text: str) -> int:
     raise AssertionError("wasm_backtrace.frames line not found")
 
 
-def test_cpython_wasi_cli_success_but_sdk_failure():
+def test_cpython_wasi_cli_and_sdk_succeed():
     cli_success, cli_stdout, cli_stderr, cli_error = _run_profile("cli")
-    sdk_success, _, _, _ = _run_profile("sdk")
+    sdk_success, sdk_stdout, sdk_stderr, sdk_error = _run_profile("sdk")
 
     assert cli_success, cli_error or cli_stderr
     assert "ok" in cli_stdout
-    assert not sdk_success
+    assert sdk_success, sdk_error or sdk_stderr
+    assert "ok" in sdk_stdout
 
 
-def test_cpython_wasi_sdk_failure_reports_missing_encodings():
-    sdk_success, _, sdk_stderr, _ = _run_profile("sdk")
+def test_cpython_wasi_sdk_legacy_failure_reports_missing_encodings():
+    sdk_success, _, sdk_stderr, _ = _run_profile("sdk-legacy")
 
     assert not sdk_success
     assert "No module named 'encodings'" in sdk_stderr
 
 
-def test_cpython_wasi_sdk_failure_includes_structured_trace_log():
-    sdk_success, _, _, sdk_error = _run_profile("sdk")
+def test_cpython_wasi_sdk_legacy_failure_includes_structured_trace_log():
+    sdk_success, _, _, sdk_error = _run_profile("sdk-legacy")
 
     assert not sdk_success
     assert sdk_error is not None
@@ -68,7 +69,7 @@ def test_cpython_wasi_context_diff_report_includes_required_dimensions():
     assert rows["argv"]["status"] == "same"
     assert rows["env"]["status"] == "same"
     assert rows["preopen.host_path"]["status"] == "same"
-    assert rows["preopen.guest_path"]["status"] == "different"
+    assert rows["preopen.guest_path"]["status"] == "same"
     assert rows["stdio.stdin"]["status"] == "same"
     assert rows["stdio.stdout"]["status"] == "same"
     assert rows["stdio.stderr"]["status"] == "same"
@@ -79,12 +80,12 @@ def test_cpython_wasi_context_diff_report_includes_required_dimensions():
     assert rows["random.insecure_seed"]["status"] == "runtime-generated"
 
 
-def test_cpython_wasi_context_diff_report_detects_preopen_path_difference():
+def test_cpython_wasi_context_diff_report_preopen_path_is_aligned():
     rows = _parse_context_diff_report(_core._debug_describe_cpython_wasi_context_diff())
 
     assert rows["preopen.guest_path"]["cli"] == "/"
-    assert rows["preopen.guest_path"]["sdk"] == "/sandbox"
-    assert rows["preopen.guest_path"]["status"] == "different"
+    assert rows["preopen.guest_path"]["sdk"] == "/"
+    assert rows["preopen.guest_path"]["status"] == "same"
 
 
 def test_cpython_wasi_context_diff_report_masks_host_runtime_path():

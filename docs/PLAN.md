@@ -85,7 +85,7 @@
 | --- | --- | --- | --- | --- |
 | P1-070 | CPython WASI 再現環境整備 | `assets/cpython-wasi` の取得手順・検証ハッシュを定義し、ローカル/CI で同一入力を再現できる状態を作る | `[x]` | P1-001 |
 | P1-071 | 再現テストの固定化 | 「CLI では成功・SDK では失敗」を再現する最小ケースを Rust/Python テストとして追加 | `[x]` | P1-070 |
-| P1-072 | CLI/SDK 差分調査 | `argv`, `env`, `preopen`, stdio, clocks/random を観点に WASI コンテキスト差分を可視化 | `[ ]` | P1-071 |
+| P1-072 | CLI/SDK 差分調査 | `argv`, `env`, `preopen`, stdio, clocks/random を観点に WASI コンテキスト差分を可視化 | `[x]` | P1-071 |
 | P1-073 | トレース強化 | `_start` 失敗時の wasm backtrace 収集・ログ整備（必要ならデバッグビルド）を実装 | `[ ]` | P1-072 |
 | P1-074 | ランタイム修正 | 差分調査結果に基づいて SDK 側の WASI 設定を修正し、CPython WASI 初期化クラッシュを解消 | `[ ]` | P1-073 |
 | P1-075 | 標準ライブラリ検証 (CPython WASI) | `json`, `re`, `datetime`, `collections` 等の import/実行確認を CPython WASI 経路で実施 | `[ ]` | P1-074 |
@@ -114,6 +114,7 @@
 - (2026-02-14) P1-070 完了。`assets/cpython-wasi/manifest.json` に取得元 URL と SHA-256 を固定し、`scripts/prepare_cpython_wasi_assets.py` でローカル/CI 共通の取得・検証フローを導入。
 - (2026-02-14) P1-070 追補。アーカイブ破損時の再取得リカバリ、ダウンロードタイムアウト/リトライ、`scripts/`・`tests/` を含む CI lint を追加して再現環境の運用安定性を強化。
 - (2026-02-14) P1-071 完了。`agentbox-core` の Rust テストで CLI 相当 WASI コンテキスト成功と SDK 相当コンテキスト失敗（`encodings` 読み込み失敗）を固定化し、Python テストにも同再現ケースを追加。
+- (2026-02-15) P1-072 完了。`agentbox-core` に CLI/SDK の WASI コンテキスト差分レポート機能を追加し、`argv`/`env`/`preopen`/`stdio`/`clock`/`random` の各観点を Rust/Python テストで可視化・検証可能にした。
 
 ### 1.8 リリース準備
 

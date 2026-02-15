@@ -1,4 +1,8 @@
-from typing import Optional
+from typing import Optional, Tuple
+
+def _debug_run_cpython_wasi_repro(
+    profile: str, code: Optional[str] = None
+) -> Tuple[bool, str, str, Optional[str]]: ...
 
 class SandboxConfig:
     memory_limit_mb: Optional[int]

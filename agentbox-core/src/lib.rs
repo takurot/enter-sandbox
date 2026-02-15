@@ -1,10 +1,26 @@
 use pyo3::prelude::*;
 
+mod cpython_wasi_repro;
 mod runtime;
 mod vfs;
 
 use runtime::WasmRuntime;
 use vfs::VirtualFS;
+
+#[pyfunction]
+#[pyo3(signature = (profile, code=None))]
+fn _debug_run_cpython_wasi_repro(
+    profile: &str,
+    code: Option<String>,
+) -> PyResult<(bool, String, String, Option<String>)> {
+    let profile = cpython_wasi_repro::ReproProfile::parse(profile)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
+    let source = code.unwrap_or_else(|| cpython_wasi_repro::default_code().to_string());
+    let run = cpython_wasi_repro::run(profile, &source)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
+    Ok((run.success, run.stdout, run.stderr, run.error))
+}
 
 #[pyclass]
 #[derive(Clone)]
@@ -142,5 +158,6 @@ impl Sandbox {
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Sandbox>()?;
     m.add_class::<SandboxConfig>()?;
+    m.add_function(pyo3::wrap_pyfunction!(_debug_run_cpython_wasi_repro, m)?)?;
     Ok(())
 }

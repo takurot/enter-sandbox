@@ -51,7 +51,7 @@ def test_cpython_wasi_sdk_legacy_failure_reports_missing_encodings():
     assert "No module named 'encodings'" in sdk_stderr
 
 
-def test_cpython_wasi_sdk_failure_includes_structured_trace_log():
+def test_cpython_wasi_sdk_legacy_failure_includes_structured_trace_log():
     sdk_success, _, _, sdk_error = _run_profile("sdk-legacy")
 
     assert not sdk_success

@@ -453,7 +453,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cpython_wasi_sdk_failure_includes_structured_trace_log() {
+    fn test_cpython_wasi_sdk_legacy_failure_includes_structured_trace_log() {
         let result = run(ReproProfile::SdkLegacy, default_code()).unwrap();
         assert!(!result.success, "{}", format_details(&result));
 

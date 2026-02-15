@@ -1,9 +1,6 @@
-from functools import lru_cache
-
 from agentbox import _core
 
 
-@lru_cache(maxsize=2)
 def _run_profile(profile: str):
     return _core._debug_run_cpython_wasi_repro(profile)
 

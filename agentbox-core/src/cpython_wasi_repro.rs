@@ -1,5 +1,7 @@
 use anyhow::{bail, Context, Result};
 use std::path::{Path, PathBuf};
+use std::thread;
+use std::time::Duration;
 use wasmtime::{Config, Engine, Linker, Module, Store, WasmBacktrace};
 use wasmtime_wasi::pipe::{MemoryInputPipe, MemoryOutputPipe};
 use wasmtime_wasi::preview1::{self, WasiP1Ctx};
@@ -67,6 +69,12 @@ pub struct ReproRun {
     pub stdout: String,
     pub stderr: String,
     pub error: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct ReproRunOptions {
+    pub timeout_ms: Option<u64>,
+    pub max_output_bytes: Option<usize>,
 }
 
 struct ReproSession {
@@ -234,11 +242,20 @@ pub fn context_diff_report() -> String {
 }
 
 pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
+    run_with_options(profile, code, ReproRunOptions::default())
+}
+
+pub fn run_with_options(
+    profile: ReproProfile,
+    code: &str,
+    options: ReproRunOptions,
+) -> Result<ReproRun> {
     let runtime_dir = cpython_runtime_dir();
     let wasm_path = runtime_dir.join("python.wasm");
     ensure_runtime_available(&runtime_dir, &wasm_path)?;
+    let output_limit_bytes = resolve_output_limit(options.max_output_bytes)?;
 
-    let engine = create_engine()?;
+    let engine = create_engine(options.timeout_ms.is_some())?;
     let module = Module::from_file(&engine, &wasm_path).with_context(|| {
         format!(
             "Failed to load CPython WASI module: {}",
@@ -252,8 +269,8 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
     })
     .context("Failed to link WASI preview1")?;
 
-    let stdout_pipe = MemoryOutputPipe::new(OUTPUT_LIMIT_BYTES);
-    let stderr_pipe = MemoryOutputPipe::new(OUTPUT_LIMIT_BYTES);
+    let stdout_pipe = MemoryOutputPipe::new(output_limit_bytes);
+    let stderr_pipe = MemoryOutputPipe::new(output_limit_bytes);
 
     let context_view = WasiContextView::for_profile(profile);
     let mut builder = WasiCtxBuilder::new();
@@ -272,6 +289,7 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
         stderr_pipe,
     };
     let mut store = Store::new(&engine, session);
+    arm_timeout_deadline(&mut store, &engine, options.timeout_ms);
 
     let instance = linker
         .instantiate(&mut store, &module)
@@ -281,13 +299,28 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
         .context("Failed to resolve _start")?;
 
     let call_result = start.call(&mut store, ());
-    let (success, error) = match call_result {
-        Ok(()) => (true, None),
-        Err(err) => (false, Some(format_start_call_failure(&err))),
-    };
+    let stdout_bytes = store.data().stdout_pipe.contents();
+    let stderr_bytes = store.data().stderr_pipe.contents();
+    let output_limit_exceeded =
+        stdout_bytes.len() >= output_limit_bytes || stderr_bytes.len() >= output_limit_bytes;
 
-    let stdout = String::from_utf8_lossy(store.data().stdout_pipe.contents().as_ref()).to_string();
-    let stderr = String::from_utf8_lossy(store.data().stderr_pipe.contents().as_ref()).to_string();
+    let stdout = String::from_utf8_lossy(stdout_bytes.as_ref()).to_string();
+    let stderr = String::from_utf8_lossy(stderr_bytes.as_ref()).to_string();
+
+    let mut success = true;
+    let mut error = None;
+
+    if let Err(err) = call_result {
+        success = false;
+        error = Some(classify_start_call_failure(&err, options.timeout_ms));
+    }
+    if output_limit_exceeded {
+        success = false;
+        error = Some(format!(
+            "Execution output exceeded max_output_bytes={} bytes",
+            output_limit_bytes
+        ));
+    }
 
     Ok(ReproRun {
         success,
@@ -297,10 +330,52 @@ pub fn run(profile: ReproProfile, code: &str) -> Result<ReproRun> {
     })
 }
 
-fn create_engine() -> Result<Engine> {
+fn create_engine(enable_epoch_interruption: bool) -> Result<Engine> {
     let mut config = Config::new();
     config.wasm_backtrace(true);
+    if enable_epoch_interruption {
+        config.epoch_interruption(true);
+    }
     Engine::new(&config).context("Failed to create Wasmtime engine for CPython WASI repro")
+}
+
+fn resolve_output_limit(max_output_bytes: Option<usize>) -> Result<usize> {
+    let output_limit = max_output_bytes.unwrap_or(OUTPUT_LIMIT_BYTES);
+    if output_limit == 0 {
+        bail!("max_output_bytes must be greater than 0");
+    }
+    Ok(output_limit)
+}
+
+fn arm_timeout_deadline(store: &mut Store<ReproSession>, engine: &Engine, timeout_ms: Option<u64>) {
+    let Some(timeout_ms) = timeout_ms else {
+        return;
+    };
+    store.set_epoch_deadline(1);
+    let engine = engine.clone();
+    thread::spawn(move || {
+        thread::sleep(Duration::from_millis(timeout_ms));
+        engine.increment_epoch();
+    });
+}
+
+fn classify_start_call_failure(error: &anyhow::Error, timeout_ms: Option<u64>) -> String {
+    if let Some(timeout_ms) = timeout_ms {
+        if is_epoch_timeout(error) {
+            return format!(
+                "Execution timed out after {timeout_ms} ms\n{}",
+                format_start_call_failure(error)
+            );
+        }
+    }
+    format_start_call_failure(error)
+}
+
+fn is_epoch_timeout(error: &anyhow::Error) -> bool {
+    error.chain().any(|cause| {
+        let lower = cause.to_string().to_ascii_lowercase();
+        lower.contains("interrupt") || lower.contains("epoch deadline")
+    })
 }
 
 fn format_start_call_failure(error: &anyhow::Error) -> String {
@@ -434,6 +509,10 @@ fn ensure_runtime_available(runtime_dir: &Path, wasm_path: &Path) -> Result<()> 
 mod tests {
     use super::*;
 
+    const EXCEPTION_CODE: &str = "raise RuntimeError('boom-from-repro')\n";
+    const TIMEOUT_TARGET_CODE: &str = "import time\ntime.sleep(2)\nprint('timeout-missed')\n";
+    const LARGE_OUTPUT_CODE: &str = "print('x' * 16384)\n";
+
     fn format_details(run: &ReproRun) -> String {
         format!(
             "stdout:\n{}\n---\nstderr:\n{}\n---\nerror:\n{}",
@@ -525,6 +604,51 @@ mod tests {
 
         assert!(cli.success, "{}", format_details(&cli));
         assert!(sdk.success, "{}", format_details(&sdk));
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_profile_failure_reports_python_exception() {
+        let result = run(ReproProfile::Sdk, EXCEPTION_CODE).unwrap();
+
+        assert!(!result.success, "{}", format_details(&result));
+        assert!(
+            result.stderr.contains("RuntimeError: boom-from-repro"),
+            "{}",
+            format_details(&result)
+        );
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_profile_timeout_is_reported() {
+        let options = ReproRunOptions {
+            timeout_ms: Some(20),
+            max_output_bytes: None,
+        };
+        let result = run_with_options(ReproProfile::Sdk, TIMEOUT_TARGET_CODE, options).unwrap();
+
+        assert!(!result.success, "{}", format_details(&result));
+        let error = result
+            .error
+            .as_deref()
+            .expect("timeout should include error details");
+        assert!(error.contains("Execution timed out after 20 ms"));
+        assert!(error.contains("trace.capture=wasm-backtrace-v1"));
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_profile_output_limit_is_reported() {
+        let options = ReproRunOptions {
+            timeout_ms: None,
+            max_output_bytes: Some(256),
+        };
+        let result = run_with_options(ReproProfile::Sdk, LARGE_OUTPUT_CODE, options).unwrap();
+
+        assert!(!result.success, "{}", format_details(&result));
+        let error = result
+            .error
+            .as_deref()
+            .expect("output limit overflow should include error details");
+        assert!(error.contains("max_output_bytes=256"));
     }
 
     #[test]

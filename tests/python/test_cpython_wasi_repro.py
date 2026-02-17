@@ -20,10 +20,23 @@ assert payload["date"] == "2026-02-15"
 assert payload["counter"] == 2
 print("stdlib-smoke:ok")
 """
+EXCEPTION_CODE = "raise RuntimeError('boom-from-repro')\n"
+TIMEOUT_TARGET_CODE = "import time\ntime.sleep(2)\nprint('timeout-missed')\n"
+LARGE_OUTPUT_CODE = "print('x' * 16384)\n"
 
 
-def _run_profile(profile: str, code: Optional[str] = None):
-    return _core._debug_run_cpython_wasi_repro(profile, code)
+def _run_profile(
+    profile: str,
+    code: Optional[str] = None,
+    timeout_ms: Optional[int] = None,
+    max_output_bytes: Optional[int] = None,
+):
+    return _core._debug_run_cpython_wasi_repro(
+        profile,
+        code,
+        timeout_ms,
+        max_output_bytes,
+    )
 
 
 def _parse_context_diff_report(report: str):
@@ -96,6 +109,30 @@ def test_cpython_wasi_sdk_legacy_failure_includes_structured_trace_log():
     assert "trace.status=attached" in sdk_error
     assert "wasm_backtrace.note=not-attached" not in sdk_error
     assert _extract_frames_count(sdk_error) > 0
+
+
+def test_cpython_wasi_sdk_profile_failure_reports_python_exception():
+    success, _, stderr, _ = _run_profile("sdk", EXCEPTION_CODE)
+
+    assert not success
+    assert "RuntimeError: boom-from-repro" in stderr
+
+
+def test_cpython_wasi_sdk_profile_timeout_is_reported():
+    success, _, _, error = _run_profile("sdk", TIMEOUT_TARGET_CODE, timeout_ms=20)
+
+    assert not success
+    assert error is not None
+    assert "Execution timed out after 20 ms" in error
+    assert "trace.capture=wasm-backtrace-v1" in error
+
+
+def test_cpython_wasi_sdk_profile_output_limit_is_reported():
+    success, _, _, error = _run_profile("sdk", LARGE_OUTPUT_CODE, max_output_bytes=256)
+
+    assert not success
+    assert error is not None
+    assert "max_output_bytes=256" in error
 
 
 def test_cpython_wasi_context_diff_report_includes_required_dimensions():

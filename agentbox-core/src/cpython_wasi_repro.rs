@@ -6,6 +6,25 @@ use wasmtime_wasi::preview1::{self, WasiP1Ctx};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 
 const DEFAULT_REPRO_CODE: &str = "import json\nprint('ok')\n";
+#[cfg(test)]
+const STDLIB_SMOKE_CODE: &str = r#"import collections
+import datetime
+import json
+import re
+
+payload = {
+    "json": json.loads('{"value": 42}')["value"],
+    "regex": bool(re.search(r"\d+", "v42")),
+    "date": datetime.date(2026, 2, 15).isoformat(),
+    "counter": collections.Counter("abca")["a"],
+}
+
+assert payload["json"] == 42
+assert payload["regex"]
+assert payload["date"] == "2026-02-15"
+assert payload["counter"] == 2
+print("stdlib-smoke:ok")
+"#;
 const OUTPUT_LIMIT_BYTES: usize = 1024 * 1024;
 const RUNTIME_HOST_PATH_LABEL: &str = "<assets/cpython-wasi/runtime>";
 const TRACE_CAPTURE_MARKER: &str = "trace.capture=wasm-backtrace-v1";
@@ -100,6 +119,11 @@ impl WasiContextView {
 
 pub fn default_code() -> &'static str {
     DEFAULT_REPRO_CODE
+}
+
+#[cfg(test)]
+fn stdlib_smoke_code() -> &'static str {
+    STDLIB_SMOKE_CODE
 }
 
 fn context_diff_rows() -> Vec<DiffRow> {
@@ -439,6 +463,26 @@ mod tests {
         let result = run(ReproProfile::Sdk, default_code()).unwrap();
         assert!(result.success, "{}", format_details(&result));
         assert!(result.stdout.lines().any(|line| line.trim() == "ok"));
+    }
+
+    #[test]
+    fn test_cpython_wasi_cli_profile_imports_core_stdlib_modules() {
+        let result = run(ReproProfile::Cli, stdlib_smoke_code()).unwrap();
+        assert!(result.success, "{}", format_details(&result));
+        assert!(result
+            .stdout
+            .lines()
+            .any(|line| line.trim() == "stdlib-smoke:ok"));
+    }
+
+    #[test]
+    fn test_cpython_wasi_sdk_profile_imports_core_stdlib_modules() {
+        let result = run(ReproProfile::Sdk, stdlib_smoke_code()).unwrap();
+        assert!(result.success, "{}", format_details(&result));
+        assert!(result
+            .stdout
+            .lines()
+            .any(|line| line.trim() == "stdlib-smoke:ok"));
     }
 
     #[test]

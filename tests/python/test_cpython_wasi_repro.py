@@ -1,8 +1,29 @@
+from typing import Optional
+
 from agentbox import _core
 
+STDLIB_SMOKE_CODE = """import collections
+import datetime
+import json
+import re
 
-def _run_profile(profile: str):
-    return _core._debug_run_cpython_wasi_repro(profile)
+payload = {
+    "json": json.loads('{"value": 42}')["value"],
+    "regex": bool(re.search(r"\\d+", "v42")),
+    "date": datetime.date(2026, 2, 15).isoformat(),
+    "counter": collections.Counter("abca")["a"],
+}
+
+assert payload["json"] == 42
+assert payload["regex"]
+assert payload["date"] == "2026-02-15"
+assert payload["counter"] == 2
+print("stdlib-smoke:ok")
+"""
+
+
+def _run_profile(profile: str, code: Optional[str] = None):
+    return _core._debug_run_cpython_wasi_repro(profile, code)
 
 
 def _parse_context_diff_report(report: str):
@@ -42,6 +63,20 @@ def test_cpython_wasi_cli_and_sdk_succeed():
     assert "ok" in cli_stdout
     assert sdk_success, sdk_error or sdk_stderr
     assert "ok" in sdk_stdout
+
+
+def test_cpython_wasi_cli_profile_imports_core_stdlib_modules():
+    success, stdout, stderr, error = _run_profile("cli", STDLIB_SMOKE_CODE)
+
+    assert success, error or stderr
+    assert "stdlib-smoke:ok" in stdout
+
+
+def test_cpython_wasi_sdk_profile_imports_core_stdlib_modules():
+    success, stdout, stderr, error = _run_profile("sdk", STDLIB_SMOKE_CODE)
+
+    assert success, error or stderr
+    assert "stdlib-smoke:ok" in stdout
 
 
 def test_cpython_wasi_sdk_legacy_failure_reports_missing_encodings():

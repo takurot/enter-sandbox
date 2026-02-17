@@ -88,7 +88,7 @@
 | P1-072 | CLI/SDK 差分調査 | `argv`, `env`, `preopen`, stdio, clocks/random を観点に WASI コンテキスト差分を可視化 | `[x]` | P1-071 |
 | P1-073 | トレース強化 | `_start` 失敗時の wasm backtrace 収集・ログ整備（必要ならデバッグビルド）を実装 | `[x]` | P1-072 |
 | P1-074 | ランタイム修正 | 差分調査結果に基づいて SDK 側の WASI 設定を修正し、CPython WASI 初期化クラッシュを解消 | `[x]` | P1-073 |
-| P1-075 | 標準ライブラリ検証 (CPython WASI) | `json`, `re`, `datetime`, `collections` 等の import/実行確認を CPython WASI 経路で実施 | `[ ]` | P1-074 |
+| P1-075 | 標準ライブラリ検証 (CPython WASI) | `json`, `re`, `datetime`, `collections` 等の import/実行確認を CPython WASI 経路で実施 | `[x]` | P1-074 |
 | P1-076 | 回帰防止テスト | CPython WASI 実行経路に対する成功系・失敗系（例外/タイムアウト/出力上限）の回帰テスト追加 | `[ ]` | P1-075 |
 | P1-077 | ドキュメント更新 | 調査結果・制約・運用手順を README/PLAN に反映し、暫定メモを正式ドキュメントへ統合 | `[ ]` | P1-076 |
 
@@ -128,6 +128,7 @@
 - (2026-02-15) P1-073 完了。`_start` 失敗時に `trace.capture=wasm-backtrace-v1` 形式の構造化ログを生成し、error chain と `WasmBacktrace` フレーム情報を Rust/Python テストで検証可能にした。
 - (2026-02-15) P1-074 完了。SDK プロファイルの CPython WASI preopen guest path を `/sandbox` から `/` に揃えて初期化クラッシュ（`No module named 'encodings'`）を解消。旧失敗経路は `sdk-legacy` として保持し、構造化トレース検証を継続可能にした。
 - (2026-02-15) SPEC/PLAN/実装の整合確認を実施。現行コードで未カバーだった `SandboxResult` 戻り値、`allowed_modules`、epoch timeout 強制、Dummy Runner 置換、Phase1 E2E ケース数不足を P1-078〜P1-082 として追加。
+- (2026-02-17) P1-075 完了。CPython WASI の CLI/SDK プロファイルで `json`/`re`/`datetime`/`collections` の import と基本操作を smoke code で検証し、Rust/Python テストに固定化。
 
 ### 1.9 リリース準備
 

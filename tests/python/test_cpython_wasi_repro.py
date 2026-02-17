@@ -21,7 +21,7 @@ assert payload["counter"] == 2
 print("stdlib-smoke:ok")
 """
 EXCEPTION_CODE = "raise RuntimeError('boom-from-repro')\n"
-INFINITE_LOOP_CODE = "while True:\n    pass\n"
+TIMEOUT_TARGET_CODE = "import time\ntime.sleep(2)\nprint('timeout-missed')\n"
 LARGE_OUTPUT_CODE = "print('x' * 16384)\n"
 
 
@@ -119,7 +119,7 @@ def test_cpython_wasi_sdk_profile_failure_reports_python_exception():
 
 
 def test_cpython_wasi_sdk_profile_timeout_is_reported():
-    success, _, _, error = _run_profile("sdk", INFINITE_LOOP_CODE, timeout_ms=20)
+    success, _, _, error = _run_profile("sdk", TIMEOUT_TARGET_CODE, timeout_ms=20)
 
     assert not success
     assert error is not None

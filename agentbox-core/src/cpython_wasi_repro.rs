@@ -510,7 +510,7 @@ mod tests {
     use super::*;
 
     const EXCEPTION_CODE: &str = "raise RuntimeError('boom-from-repro')\n";
-    const INFINITE_LOOP_CODE: &str = "while True:\n    pass\n";
+    const TIMEOUT_TARGET_CODE: &str = "import time\ntime.sleep(2)\nprint('timeout-missed')\n";
     const LARGE_OUTPUT_CODE: &str = "print('x' * 16384)\n";
 
     fn format_details(run: &ReproRun) -> String {
@@ -624,7 +624,7 @@ mod tests {
             timeout_ms: Some(20),
             max_output_bytes: None,
         };
-        let result = run_with_options(ReproProfile::Sdk, INFINITE_LOOP_CODE, options).unwrap();
+        let result = run_with_options(ReproProfile::Sdk, TIMEOUT_TARGET_CODE, options).unwrap();
 
         assert!(!result.success, "{}", format_details(&result));
         let error = result

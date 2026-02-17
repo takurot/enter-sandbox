@@ -1,7 +1,10 @@
 from typing import Optional, Tuple
 
 def _debug_run_cpython_wasi_repro(
-    profile: str, code: Optional[str] = None
+    profile: str,
+    code: Optional[str] = None,
+    timeout_ms: Optional[int] = None,
+    max_output_bytes: Optional[int] = None,
 ) -> Tuple[bool, str, str, Optional[str]]: ...
 def _debug_describe_cpython_wasi_context_diff() -> str: ...
 

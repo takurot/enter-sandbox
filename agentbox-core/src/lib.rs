@@ -8,16 +8,26 @@ use runtime::WasmRuntime;
 use vfs::VirtualFS;
 
 #[pyfunction]
-#[pyo3(signature = (profile, code=None))]
+#[pyo3(signature = (profile, code=None, timeout_ms=None, max_output_bytes=None))]
 fn _debug_run_cpython_wasi_repro(
     profile: &str,
     code: Option<String>,
+    timeout_ms: Option<u64>,
+    max_output_bytes: Option<usize>,
 ) -> PyResult<(bool, String, String, Option<String>)> {
     let profile = cpython_wasi_repro::ReproProfile::parse(profile)
         .map_err(|e| PyErr::new::<pyo3::exceptions::PyValueError, _>(e.to_string()))?;
     let source = code.unwrap_or_else(|| cpython_wasi_repro::default_code().to_string());
-    let run = cpython_wasi_repro::run(profile, &source)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+    let run = if timeout_ms.is_none() && max_output_bytes.is_none() {
+        cpython_wasi_repro::run(profile, &source)
+    } else {
+        let options = cpython_wasi_repro::ReproRunOptions {
+            timeout_ms,
+            max_output_bytes,
+        };
+        cpython_wasi_repro::run_with_options(profile, &source, options)
+    }
+    .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
     Ok((run.success, run.stdout, run.stderr, run.error))
 }

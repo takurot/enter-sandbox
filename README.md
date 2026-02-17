@@ -84,6 +84,68 @@ print(result)
 - `Sandbox.config -> SandboxConfig`
 - `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
 
+## 🧪 CPython WASI Repro Workflow (P1-070 to P1-077)
+
+This repository includes a debug-only CPython WASI repro harness used to investigate and prevent
+WASI startup regressions.
+
+### Scope and constraints
+
+- Repro helpers are private debug APIs on `agentbox._core`:
+  - `_debug_run_cpython_wasi_repro(profile, code=None, timeout_ms=None, max_output_bytes=None)`
+  - `_debug_describe_cpython_wasi_context_diff()`
+- `Sandbox.run()` does **not** execute this CPython WASI path yet (`P1-078` is still open).
+- `sdk-legacy` intentionally keeps the old preopen path mapping (`/sandbox`) so regression tests
+  can continue to verify the historical failure (`No module named 'encodings'`).
+
+### 1) Prepare pinned runtime assets
+
+```bash
+python3 scripts/prepare_cpython_wasi_assets.py
+python3 scripts/prepare_cpython_wasi_assets.py --check-only
+```
+
+- Manifest: `assets/cpython-wasi/manifest.json`
+- Pinned artifact (current): CPython WASI `3.13.12` (`python-3.13.12-wasi_sdk-24.zip`)
+- For details, see `assets/cpython-wasi/README.md`
+
+### 2) Inspect CLI/SDK context diff
+
+```python
+from agentbox import _core
+
+print(_core._debug_describe_cpython_wasi_context_diff())
+```
+
+Key expectations fixed by tests:
+- `preopen.guest_path` is aligned (`/`) between `cli` and `sdk`
+- clocks/RNG sources are `same-source`
+- `random.insecure_seed` is `runtime-generated` by design
+
+### 3) Reproduce success/failure paths
+
+```python
+from agentbox import _core
+
+success, stdout, stderr, error = _core._debug_run_cpython_wasi_repro(
+    "sdk",
+    "import json\nprint('ok')\n",
+    timeout_ms=50,
+    max_output_bytes=4096,
+)
+```
+
+- Supported profiles: `cli`, `sdk`, `sdk-legacy`
+- Failure traces include `trace.capture=wasm-backtrace-v1`
+- Timeout and output-cap checks are regression-tested in both Rust and Python
+
+### 4) Run regression suites
+
+```bash
+cd agentbox-core && cargo test cpython_wasi_repro -- --nocapture
+pytest -q tests/python/test_cpython_wasi_repro.py
+```
+
 ## 🗺 Roadmap
 
 See [docs/PLAN.md](docs/PLAN.md) for details.
@@ -98,6 +160,7 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - [Functional Specification (SPEC.md)](docs/SPEC.md) (Japanese)
 - [Implementation Plan (PLAN.md)](docs/PLAN.md) (Japanese)
 - [Research Report (RESEARCH.md)](docs/RESEARCH.md) (Japanese)
+- [CPython WASI repro assets](assets/cpython-wasi/README.md)
 
 ## 🤝 Contributing
 

@@ -17,10 +17,12 @@ use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 const INTERNAL_CODE_PATH: &str = "__agentbox_internal__/code.py";
 const INTERNAL_PATH_PREFIX: &str = "__agentbox_internal__/";
+const EPOCH_TICK_INTERVAL_MS: u64 = 1;
+const NO_TIMEOUT_EPOCH_DEADLINE_TICKS: u64 = u64::MAX / 2;
 
-#[derive(Clone)]
 pub struct WasmRuntime {
     engine: Engine,
+    epoch_ticker_stop: Arc<AtomicBool>,
 }
 
 impl WasmRuntime {
@@ -33,7 +35,21 @@ impl WasmRuntime {
         // config.cranelift_opt_level(wasmtime::OptLevel::Speed);
 
         let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
-        Ok(Self { engine })
+        let epoch_ticker_stop = Arc::new(AtomicBool::new(false));
+        let ticker_stop = Arc::clone(&epoch_ticker_stop);
+        let ticker_engine = engine.clone();
+
+        thread::spawn(move || {
+            while !ticker_stop.load(Ordering::Relaxed) {
+                thread::sleep(Duration::from_millis(EPOCH_TICK_INTERVAL_MS));
+                ticker_engine.increment_epoch();
+            }
+        });
+
+        Ok(Self {
+            engine,
+            epoch_ticker_stop,
+        })
     }
 
     pub fn engine(&self) -> &Engine {
@@ -53,32 +69,16 @@ impl WasmRuntime {
         store
     }
 
-    pub fn arm_epoch_timeout<T>(
-        &self,
-        store: &mut Store<T>,
-        timeout_ms: Option<u64>,
-    ) -> EpochTimeoutGuard {
+    pub fn arm_epoch_timeout<T>(&self, store: &mut Store<T>, timeout_ms: Option<u64>) {
         let Some(timeout_ms) = timeout_ms else {
             // Explicitly disable timeout for this run. With epoch interruption enabled,
             // the default deadline is immediate and must be overridden.
-            store.set_epoch_deadline(u64::MAX);
-            return EpochTimeoutGuard { cancelled: None };
+            store.set_epoch_deadline(NO_TIMEOUT_EPOCH_DEADLINE_TICKS);
+            return;
         };
 
-        store.set_epoch_deadline(1);
-        let cancelled = Arc::new(AtomicBool::new(false));
-        let cancel_for_thread = Arc::clone(&cancelled);
-        let engine = self.engine.clone();
-        thread::spawn(move || {
-            thread::sleep(Duration::from_millis(timeout_ms));
-            if !cancel_for_thread.load(Ordering::Relaxed) {
-                engine.increment_epoch();
-            }
-        });
-
-        EpochTimeoutGuard {
-            cancelled: Some(cancelled),
-        }
+        let ticks = timeout_ms.div_ceil(EPOCH_TICK_INTERVAL_MS).max(1);
+        store.set_epoch_deadline(ticks);
     }
 
     pub fn is_epoch_timeout_error(error: &wasmtime::Error) -> bool {
@@ -95,6 +95,12 @@ impl WasmRuntime {
     }
 }
 
+impl Drop for WasmRuntime {
+    fn drop(&mut self) {
+        self.epoch_ticker_stop.store(true, Ordering::Relaxed);
+    }
+}
+
 pub struct WasmSession {
     wasi_ctx: WasiP1Ctx,
     limits: StoreLimits,
@@ -102,18 +108,6 @@ pub struct WasmSession {
     pub stderr_pipe: MemoryOutputPipe,
     output_limit_bytes: usize,
     sandbox_root: TempDir,
-}
-
-pub struct EpochTimeoutGuard {
-    cancelled: Option<Arc<AtomicBool>>,
-}
-
-impl Drop for EpochTimeoutGuard {
-    fn drop(&mut self) {
-        if let Some(cancelled) = &self.cancelled {
-            cancelled.store(true, Ordering::Relaxed);
-        }
-    }
 }
 
 impl WasmSession {
@@ -362,7 +356,7 @@ mod tests {
         )
         .unwrap();
         let mut store = Store::new(runtime.engine(), ());
-        let _timeout_guard = runtime.arm_epoch_timeout(&mut store, Some(20));
+        runtime.arm_epoch_timeout(&mut store, Some(20));
         let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
         let start = instance
             .get_typed_func::<(), ()>(&mut store, "_start")
@@ -388,7 +382,7 @@ mod tests {
         )
         .unwrap();
         let mut store = Store::new(runtime.engine(), ());
-        let _timeout_guard = runtime.arm_epoch_timeout(&mut store, None);
+        runtime.arm_epoch_timeout(&mut store, None);
         let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
         let start = instance
             .get_typed_func::<(), ()>(&mut store, "_start")

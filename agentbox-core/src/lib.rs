@@ -107,8 +107,7 @@ impl Sandbox {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let mut store = self.runtime.create_store(session);
-        let _timeout_guard = self
-            .runtime
+        self.runtime
             .arm_epoch_timeout(&mut store, self.config.timeout_ms);
 
         // Load WASM

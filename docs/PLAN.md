@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2026-02-15  
+> **最終更新:** 2026-02-17  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -90,7 +90,7 @@
 | P1-074 | ランタイム修正 | 差分調査結果に基づいて SDK 側の WASI 設定を修正し、CPython WASI 初期化クラッシュを解消 | `[x]` | P1-073 |
 | P1-075 | 標準ライブラリ検証 (CPython WASI) | `json`, `re`, `datetime`, `collections` 等の import/実行確認を CPython WASI 経路で実施 | `[x]` | P1-074 |
 | P1-076 | 回帰防止テスト | CPython WASI 実行経路に対する成功系・失敗系（例外/タイムアウト/出力上限）の回帰テスト追加 | `[x]` | P1-075 |
-| P1-077 | ドキュメント更新 | 調査結果・制約・運用手順を README/PLAN に反映し、暫定メモを正式ドキュメントへ統合 | `[ ]` | P1-076 |
+| P1-077 | ドキュメント更新 | 調査結果・制約・運用手順を README/PLAN に反映し、暫定メモを正式ドキュメントへ統合 | `[x]` | P1-076 |
 
 ### 1.8 SPEC/PLAN 整合ギャップ解消
 
@@ -130,6 +130,7 @@
 - (2026-02-15) SPEC/PLAN/実装の整合確認を実施。現行コードで未カバーだった `SandboxResult` 戻り値、`allowed_modules`、epoch timeout 強制、Dummy Runner 置換、Phase1 E2E ケース数不足を P1-078〜P1-082 として追加。
 - (2026-02-17) P1-075 完了。CPython WASI の CLI/SDK プロファイルで `json`/`re`/`datetime`/`collections` の import と基本操作を smoke code で検証し、Rust/Python テストに固定化。
 - (2026-02-17) P1-076 完了。CPython WASI repro 実行に `timeout_ms`/`max_output_bytes` オプションを追加し、成功系・失敗系（Python 例外/タイムアウト/出力上限）の回帰テストを Rust/Python 双方へ追加。
+- (2026-02-17) P1-077 完了。README/README.ja に CPython WASI 再現ワークフロー（固定アセット準備、CLI/SDK 差分確認、`sdk-legacy` 制約、回帰テスト実行手順）を追加し、暫定メモの運用手順を正式ドキュメントへ統合。
 
 ### 1.9 リリース準備
 

@@ -12,11 +12,13 @@ class SandboxConfig:
     memory_limit_mb: Optional[int]
     timeout_ms: Optional[int]
     max_output_bytes: Optional[int]
+    allowed_modules: Optional[list[str]]
     def __init__(
         self,
         memory_limit_mb: Optional[int] = None,
         timeout_ms: Optional[int] = None,
         max_output_bytes: Optional[int] = None,
+        allowed_modules: Optional[list[str]] = None,
     ) -> None: ...
 
 class SandboxResult:

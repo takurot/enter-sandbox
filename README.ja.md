@@ -69,7 +69,12 @@ graph TD
 ```python
 from agentbox import Sandbox, SandboxConfig
 
-config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000, max_output_bytes=8 * 1024 * 1024)
+config = SandboxConfig(
+    memory_limit_mb=256,
+    timeout_ms=3000,
+    max_output_bytes=8 * 1024 * 1024,
+    allowed_modules=["json"],
+)
 box = Sandbox(config)
 
 result = box.run("print('Hello from sandbox')")
@@ -81,8 +86,11 @@ print(result.stdout)
 - `Sandbox(config: Optional[SandboxConfig] = None)`
 - `Sandbox.run(code: str) -> SandboxResult`
 - `Sandbox.config -> SandboxConfig`
-- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
+- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int], allowed_modules: Optional[list[str]])`
 - `SandboxResult(stdout: str, stderr: str, exit_code: int)`
+
+`allowed_modules` を指定すると、`Sandbox.run()` は `import` 文を静的検査し、
+許可リスト外モジュールを分かりやすい `RuntimeError` で拒否します。
 
 ## 🧪 CPython WASI 再現手順（P1-070〜P1-077）
 

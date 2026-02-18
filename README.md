@@ -70,7 +70,12 @@ Users can utilize a unified API without being conscious of the underlying runtim
 ```python
 from agentbox import Sandbox, SandboxConfig
 
-config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000, max_output_bytes=8 * 1024 * 1024)
+config = SandboxConfig(
+    memory_limit_mb=256,
+    timeout_ms=3000,
+    max_output_bytes=8 * 1024 * 1024,
+    allowed_modules=["json"],
+)
 box = Sandbox(config)
 
 result = box.run("print('Hello from sandbox')")
@@ -82,8 +87,11 @@ print(result.stdout)
 - `Sandbox(config: Optional[SandboxConfig] = None)`
 - `Sandbox.run(code: str) -> SandboxResult`
 - `Sandbox.config -> SandboxConfig`
-- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
+- `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int], allowed_modules: Optional[list[str]])`
 - `SandboxResult(stdout: str, stderr: str, exit_code: int)`
+
+When `allowed_modules` is set, `Sandbox.run()` statically checks `import` statements and rejects
+modules outside the allow-list with a clear `RuntimeError`.
 
 ## 🧪 CPython WASI Repro Workflow (P1-070 to P1-077)
 

@@ -54,36 +54,46 @@ fn is_module_allowed(module: &str, allowed_modules: &[String]) -> bool {
 fn collect_imported_modules(code: &str) -> Vec<String> {
     let mut imports = BTreeSet::new();
 
-    for line in code.lines() {
-        for statement in split_statements(line) {
-            let candidate = statement.trim_start();
-            if let Some(rest) = strip_keyword(candidate, "import") {
-                parse_import_clause(rest, &mut imports);
-                continue;
-            }
-            if let Some(rest) = strip_keyword(candidate, "from") {
-                parse_from_import_clause(rest, &mut imports);
-            }
+    for statement in split_statements(code) {
+        let candidate = statement.trim_start();
+        if let Some(rest) = strip_keyword(candidate, "import") {
+            parse_import_clause(rest, &mut imports);
+            continue;
+        }
+        if let Some(rest) = strip_keyword(candidate, "from") {
+            parse_from_import_clause(rest, &mut imports);
         }
     }
 
     imports.into_iter().collect()
 }
 
-fn split_statements(line: &str) -> Vec<&str> {
+fn split_statements(code: &str) -> Vec<&str> {
     let mut statements = Vec::new();
-    let bytes = line.as_bytes();
+    let bytes = code.as_bytes();
     let mut start = 0usize;
     let mut index = 0usize;
     let mut state = StringState::Outside;
+    let mut in_comment = false;
     let mut escaped = false;
 
     while index < bytes.len() {
         let byte = bytes[index];
+
+        if in_comment {
+            if byte == b'\n' {
+                statements.push(&code[start..index]);
+                start = index + 1;
+                in_comment = false;
+            }
+            index += 1;
+            continue;
+        }
+
         match state {
             StringState::Outside => match byte {
                 b'#' => {
-                    break;
+                    in_comment = true;
                 }
                 b'\'' => {
                     if is_triple_quote(bytes, index, b'\'') {
@@ -101,8 +111,8 @@ fn split_statements(line: &str) -> Vec<&str> {
                     }
                     state = StringState::Double;
                 }
-                b';' => {
-                    statements.push(&line[start..index]);
+                b';' | b'\n' => {
+                    statements.push(&code[start..index]);
                     start = index + 1;
                 }
                 _ => {}
@@ -143,7 +153,7 @@ fn split_statements(line: &str) -> Vec<&str> {
         index += 1;
     }
 
-    statements.push(&line[start..index]);
+    statements.push(&code[start..index]);
     statements
 }
 
@@ -285,6 +295,13 @@ mod tests {
     #[test]
     fn ignores_comment_only_import_text_after_hash() {
         let code = "print('ok')  # import os";
+        let allowed = Vec::<String>::new();
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    #[test]
+    fn ignores_import_text_inside_multiline_triple_quoted_strings() {
+        let code = "x = '''safe\n; import os\nstill safe'''\nprint(x)";
         let allowed = Vec::<String>::new();
         assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
     }

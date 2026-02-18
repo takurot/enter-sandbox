@@ -31,3 +31,13 @@ def test_sandbox_output_limit_error_message():
 
     with pytest.raises(RuntimeError, match="max_output_bytes"):
         box.run(code)
+
+
+def test_sandbox_timeout_error_message():
+    from agentbox import SandboxConfig
+
+    box = Sandbox(SandboxConfig(timeout_ms=20))
+    code = "__agentbox_spin_ms=250\nprint('slow')"
+
+    with pytest.raises(RuntimeError, match="Execution timed out after 20 ms"):
+        box.run(code)

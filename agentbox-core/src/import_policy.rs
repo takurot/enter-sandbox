@@ -55,7 +55,7 @@ fn collect_imported_modules(code: &str) -> Vec<String> {
     let mut imports = BTreeSet::new();
 
     for line in code.lines() {
-        for statement in line.split(';') {
+        for statement in split_statements(line) {
             let candidate = statement.trim_start();
             if let Some(rest) = strip_keyword(candidate, "import") {
                 parse_import_clause(rest, &mut imports);
@@ -68,6 +68,98 @@ fn collect_imported_modules(code: &str) -> Vec<String> {
     }
 
     imports.into_iter().collect()
+}
+
+fn split_statements(line: &str) -> Vec<&str> {
+    let mut statements = Vec::new();
+    let bytes = line.as_bytes();
+    let mut start = 0usize;
+    let mut index = 0usize;
+    let mut state = StringState::Outside;
+    let mut escaped = false;
+
+    while index < bytes.len() {
+        let byte = bytes[index];
+        match state {
+            StringState::Outside => match byte {
+                b'#' => {
+                    break;
+                }
+                b'\'' => {
+                    if is_triple_quote(bytes, index, b'\'') {
+                        state = StringState::TripleSingle;
+                        index += 3;
+                        continue;
+                    }
+                    state = StringState::Single;
+                }
+                b'"' => {
+                    if is_triple_quote(bytes, index, b'"') {
+                        state = StringState::TripleDouble;
+                        index += 3;
+                        continue;
+                    }
+                    state = StringState::Double;
+                }
+                b';' => {
+                    statements.push(&line[start..index]);
+                    start = index + 1;
+                }
+                _ => {}
+            },
+            StringState::Single => {
+                if escaped {
+                    escaped = false;
+                } else if byte == b'\\' {
+                    escaped = true;
+                } else if byte == b'\'' {
+                    state = StringState::Outside;
+                }
+            }
+            StringState::Double => {
+                if escaped {
+                    escaped = false;
+                } else if byte == b'\\' {
+                    escaped = true;
+                } else if byte == b'"' {
+                    state = StringState::Outside;
+                }
+            }
+            StringState::TripleSingle => {
+                if is_triple_quote(bytes, index, b'\'') {
+                    state = StringState::Outside;
+                    index += 3;
+                    continue;
+                }
+            }
+            StringState::TripleDouble => {
+                if is_triple_quote(bytes, index, b'"') {
+                    state = StringState::Outside;
+                    index += 3;
+                    continue;
+                }
+            }
+        }
+        index += 1;
+    }
+
+    statements.push(&line[start..index]);
+    statements
+}
+
+fn is_triple_quote(bytes: &[u8], index: usize, quote: u8) -> bool {
+    bytes.get(index) == Some(&quote)
+        && bytes.get(index + 1) == Some(&quote)
+        && bytes.get(index + 2) == Some(&quote)
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum StringState {
+    Outside,
+    Single,
+    Double,
+    TripleSingle,
+    TripleDouble,
 }
 
 fn parse_import_clause(rest: &str, imports: &mut BTreeSet<String>) {
@@ -179,6 +271,20 @@ mod tests {
     #[test]
     fn ignores_text_that_only_mentions_import_in_string_literals() {
         let code = "print(\"import os\")\nprint('from collections import deque')";
+        let allowed = Vec::<String>::new();
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    #[test]
+    fn ignores_semicolon_import_text_inside_string_literals() {
+        let code = "print(\"safe; import os\")\nprint('safe; from collections import deque')";
+        let allowed = Vec::<String>::new();
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    #[test]
+    fn ignores_comment_only_import_text_after_hash() {
+        let code = "print('ok')  # import os";
         let allowed = Vec::<String>::new();
         assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
     }

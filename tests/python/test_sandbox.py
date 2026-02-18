@@ -86,3 +86,12 @@ def test_sandbox_allowed_modules_blocks_tab_or_semicolon_import_forms():
         match=r"Import blocked by SandboxConfig.allowed_modules.*blocked=\[os\]",
     ):
         box.run(code)
+
+
+def test_sandbox_allowed_modules_ignores_import_text_inside_string_literals():
+    from agentbox import SandboxConfig
+
+    box = Sandbox(SandboxConfig(allowed_modules=[]))
+    result = box.run('print("safe; import os")')
+
+    assert result.exit_code == 0

@@ -74,15 +74,16 @@ config = SandboxConfig(memory_limit_mb=256, timeout_ms=3000, max_output_bytes=8 
 box = Sandbox(config)
 
 result = box.run("print('Hello from sandbox')")
-print(result)
+print(result.stdout)
 ```
 
 ## 🧾 SDK API (Current)
 
 - `Sandbox(config: Optional[SandboxConfig] = None)`
-- `Sandbox.run(code: str) -> str`
+- `Sandbox.run(code: str) -> SandboxResult`
 - `Sandbox.config -> SandboxConfig`
 - `SandboxConfig(memory_limit_mb: Optional[int], timeout_ms: Optional[int], max_output_bytes: Optional[int])`
+- `SandboxResult(stdout: str, stderr: str, exit_code: int)`
 
 ## 🧪 CPython WASI Repro Workflow (P1-070 to P1-077)
 

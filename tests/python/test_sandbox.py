@@ -1,6 +1,6 @@
 import pytest
 
-from agentbox import Sandbox
+from agentbox import Sandbox, SandboxResult
 
 
 def test_sandbox_run_basic():
@@ -8,9 +8,12 @@ def test_sandbox_run_basic():
     code = "print('Hello')"
     result = box.run(code)
 
-    assert "Start Execution" in result
-    assert "Executing code: print('Hello')" in result
-    assert "End Execution" in result
+    assert isinstance(result, SandboxResult)
+    assert "Start Execution" in result.stdout
+    assert "Executing code: print('Hello')" in result.stdout
+    assert "End Execution" in result.stdout
+    assert result.stderr == ""
+    assert result.exit_code == 0
 
 
 def test_sandbox_config():

@@ -66,6 +66,27 @@ impl SandboxConfig {
 }
 
 #[pyclass]
+#[derive(Clone, Debug)]
+pub struct SandboxResult {
+    #[pyo3(get)]
+    stdout: String,
+    #[pyo3(get)]
+    stderr: String,
+    #[pyo3(get)]
+    exit_code: i32,
+}
+
+impl SandboxResult {
+    fn success(stdout: String, stderr: String) -> Self {
+        Self {
+            stdout,
+            stderr,
+            exit_code: 0,
+        }
+    }
+}
+
+#[pyclass]
 struct Sandbox {
     runtime: WasmRuntime,
     #[allow(dead_code)]
@@ -94,7 +115,7 @@ impl Sandbox {
         })
     }
 
-    fn run(&self, code: String) -> PyResult<String> {
+    fn run(&self, code: String) -> PyResult<SandboxResult> {
         let memory_bytes = self.config.memory_limit_mb.map(|mb| mb * 1024 * 1024);
         let max_output_bytes = self.config.max_output_bytes;
 
@@ -150,15 +171,12 @@ impl Sandbox {
             .sync_back_to_vfs(&self.vfs)
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
-        let stdout = store.data().stdout_pipe.contents();
-        let stderr = store.data().stderr_pipe.contents();
+        let stdout =
+            String::from_utf8_lossy(store.data().stdout_pipe.contents().as_ref()).to_string();
+        let stderr =
+            String::from_utf8_lossy(store.data().stderr_pipe.contents().as_ref()).to_string();
 
-        let mut combined = String::from_utf8_lossy(stdout.as_ref()).to_string();
-        if !stderr.is_empty() {
-            combined.push_str(&String::from_utf8_lossy(stderr.as_ref()));
-        }
-
-        Ok(combined)
+        Ok(SandboxResult::success(stdout, stderr))
     }
 
     // Config getter
@@ -173,6 +191,7 @@ impl Sandbox {
 fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Sandbox>()?;
     m.add_class::<SandboxConfig>()?;
+    m.add_class::<SandboxResult>()?;
     m.add_function(pyo3::wrap_pyfunction!(_debug_run_cpython_wasi_repro, m)?)?;
     m.add_function(pyo3::wrap_pyfunction!(
         _debug_describe_cpython_wasi_context_diff,

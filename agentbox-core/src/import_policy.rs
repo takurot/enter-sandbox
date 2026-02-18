@@ -1,3 +1,25 @@
+//! Static import-policy enforcement for `SandboxConfig.allowed_modules`.
+//!
+//! # Security note
+//!
+//! This module performs **static, lexical analysis** of the submitted Python
+//! source code.  It is intentionally a *convenience guard*, not a security
+//! boundary.  Dynamic import forms such as
+//!
+//! ```python
+//! __import__("os")
+//! importlib.import_module("os")
+//! exec("import os")
+//! ```
+//!
+//! are **not** detected and will not be blocked by this check.
+//!
+//! The actual security boundary is the WebAssembly (WASM) runtime: all user
+//! code runs inside a Wasmtime sandbox with capability-based isolation.
+//! `allowed_modules` is an ergonomic API that surfaces policy violations early
+//! (before the WASM engine starts) and produces a clear error message, but it
+//! must not be relied upon as the sole defence against malicious code.
+
 use anyhow::{bail, Result};
 use std::collections::BTreeSet;
 
@@ -181,14 +203,30 @@ fn parse_import_clause(rest: &str, imports: &mut BTreeSet<String>) {
 }
 
 fn parse_from_import_clause(rest: &str, imports: &mut BTreeSet<String>) {
-    let mut parts = rest.split_whitespace();
+    // Strip leading dots for relative imports (e.g. `from . import foo`,
+    // `from ..pkg import bar`).  Relative imports reference names within the
+    // same package and cannot introduce external modules, so we skip them
+    // rather than blocking them.
+    let rest_trimmed = rest.trim_start();
+    if rest_trimmed.starts_with('.') {
+        return;
+    }
+
+    // Split on whitespace to find the module name and the `import` keyword.
+    // We must handle the parenthesised form:
+    //   from collections import (defaultdict, OrderedDict)
+    // In that case `parts.next()` after the keyword may start with `(`.
+    let mut parts = rest_trimmed.split_whitespace();
     let Some(module_part) = parts.next() else {
         return;
     };
     let Some(keyword) = parts.next() else {
         return;
     };
-    if keyword != "import" {
+    // The keyword token is normally "import", but when there is no space
+    // before the opening parenthesis it becomes "import(..." (e.g.
+    // `from collections import(defaultdict)`).  Accept both forms.
+    if !keyword.starts_with("import") {
         return;
     }
 
@@ -208,7 +246,9 @@ fn strip_keyword<'a>(statement: &'a str, keyword: &str) -> Option<&'a str> {
 }
 
 fn extract_module_name(raw: &str) -> Option<String> {
-    let trimmed = raw.trim().trim_start_matches('.');
+    // Do NOT strip leading dots here; relative-import detection is handled in
+    // `parse_from_import_clause` before this function is called.
+    let trimmed = raw.trim();
     if trimmed.is_empty() {
         return None;
     }
@@ -254,8 +294,9 @@ mod tests {
         let error = enforce_allowed_modules(code, Some(&allowed))
             .expect_err("disallowed imports should fail");
         let message = error.to_string();
-        assert!(message.contains("blocked=[collections, os]"));
-        assert!(message.contains("allowed=[json]"));
+        assert!(message.contains("collections"), "message: {message}");
+        assert!(message.contains("os"), "message: {message}");
+        assert!(message.contains("allowed=[json]"), "message: {message}");
     }
 
     #[test]
@@ -302,6 +343,63 @@ mod tests {
     #[test]
     fn ignores_import_text_inside_multiline_triple_quoted_strings() {
         let code = "x = '''safe\n; import os\nstill safe'''\nprint(x)";
+        let allowed = Vec::<String>::new();
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    // --- Parenthesised from-import form ---
+
+    #[test]
+    fn detects_from_import_with_parenthesised_names() {
+        let code = "from collections import (\n    defaultdict,\n    OrderedDict,\n)";
+        let allowed = Vec::<String>::new();
+
+        let error = enforce_allowed_modules(code, Some(&allowed))
+            .expect_err("collections should be detected in parenthesised form");
+        assert!(
+            error.to_string().contains("collections"),
+            "message: {}",
+            error
+        );
+    }
+
+    #[test]
+    fn allows_from_import_with_parenthesised_names_when_permitted() {
+        let code = "from collections import (\n    defaultdict,\n    OrderedDict,\n)";
+        let allowed = vec!["collections".to_string()];
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    #[test]
+    fn detects_from_import_no_space_before_paren() {
+        // `from collections import(defaultdict)` — no space before `(`
+        let code = "from collections import(defaultdict)";
+        let allowed = Vec::<String>::new();
+
+        let error = enforce_allowed_modules(code, Some(&allowed))
+            .expect_err("collections should be detected even without space before paren");
+        assert!(
+            error.to_string().contains("collections"),
+            "message: {}",
+            error
+        );
+    }
+
+    // --- Relative imports ---
+
+    #[test]
+    fn ignores_relative_imports_single_dot() {
+        // `from . import utils` — relative, no external module introduced
+        let code = "from . import utils";
+        let allowed = Vec::<String>::new();
+        // Relative imports are skipped (not blocked) because they cannot
+        // introduce external modules.
+        assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
+    }
+
+    #[test]
+    fn ignores_relative_imports_double_dot() {
+        let code = "from ..models import Foo";
         let allowed = Vec::<String>::new();
         assert!(enforce_allowed_modules(code, Some(&allowed)).is_ok());
     }

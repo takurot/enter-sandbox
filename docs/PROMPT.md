@@ -69,6 +69,7 @@ rustup target add wasm32-wasip1
 ### 4) Documentation & Updates
 - Update `docs/PLAN.md` status.
 - Add notes to `docs/PLAN.md` regarding any architectural decisions made.
+- If `docs/SPEC.md` and implementation diverge, record the gap in `docs/PLAN.md`; if an existing future task already covers it, add a note under "メモ・課題", otherwise add a new task to `docs/PLAN.md`.
 
 ---
 

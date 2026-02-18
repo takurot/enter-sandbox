@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2026-02-17  
+> **最終更新:** 2026-02-18  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -99,7 +99,7 @@
 | P1-078 | Tier1 実行エンジン実体化 | Dummy `runner-wasm` を RustPython 実行器に置換し、`Sandbox.run()` が実際の Python 実行結果（stdout/stderr）を返すようにする | `[ ]` | P1-020 |
 | P1-079 | `SandboxResult` API 整合 | `Sandbox.run()` の戻り値を `SandboxResult(stdout, stderr, exit_code)` に変更し、PyO3 バインディング・`.pyi`・README・pytest を更新する | `[ ]` | P1-078 |
 | P1-080 | `allowed_modules` 制御実装 | `SandboxConfig.allowed_modules` を追加し、未許可 import の遮断とユーザー向けエラーメッセージ、回帰テストを実装する | `[ ]` | P1-079 |
-| P1-081 | タイムアウト強制の仕様一致 | fuel ヒューリスティクス依存を解消し、仕様どおり epoch interruption ベースの wall-clock timeout 強制とテストを実装する | `[ ]` | P1-012 |
+| P1-081 | タイムアウト強制の仕様一致 | fuel ヒューリスティクス依存を解消し、仕様どおり epoch interruption ベースの wall-clock timeout 強制とテストを実装する | `[x]` | P1-012 |
 | P1-082 | Phase1 Python E2E 拡充 | `tests/python` を正常系・異常系 20 ケース以上に拡張し、P1-051 の受け入れ条件を満たす | `[ ]` | P1-079, P1-080 |
 
 ### 1.9 リリース準備
@@ -131,6 +131,7 @@
 - (2026-02-17) P1-075 完了。CPython WASI の CLI/SDK プロファイルで `json`/`re`/`datetime`/`collections` の import と基本操作を smoke code で検証し、Rust/Python テストに固定化。
 - (2026-02-17) P1-076 完了。CPython WASI repro 実行に `timeout_ms`/`max_output_bytes` オプションを追加し、成功系・失敗系（Python 例外/タイムアウト/出力上限）の回帰テストを Rust/Python 双方へ追加。
 - (2026-02-17) P1-077 完了。README/README.ja に CPython WASI 再現ワークフロー（固定アセット準備、CLI/SDK 差分確認、`sdk-legacy` 制約、回帰テスト実行手順）を追加し、暫定メモの運用手順を正式ドキュメントへ統合。
+- (2026-02-18) P1-081 完了。`Sandbox.run()` の fuel ヒューリスティクスを廃止して epoch interruption ベースの wall-clock timeout に切り替え。`runner-wasm` の有限 spin ディレクティブと Rust/Python 回帰テストを追加し、timeout エラー文言を固定化。
 
 ### 1.9 リリース準備
 

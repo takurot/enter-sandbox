@@ -107,17 +107,9 @@ impl Sandbox {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
 
         let mut store = self.runtime.create_store(session);
-
-        // Timeout handling via timeout_ms?
-        // Runtime has consume_fuel enabled.
-        // We can add fuel.
-        if let Some(ms) = self.config.timeout_ms {
-            // Heuristic: 1ms ~ 10_000 fuel?
-            // Just setting a limit for now.
-            store.set_fuel(ms * 10_000).ok();
-        } else {
-            store.set_fuel(u64::MAX).ok();
-        }
+        let _timeout_guard = self
+            .runtime
+            .arm_epoch_timeout(&mut store, self.config.timeout_ms);
 
         // Load WASM
         const WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm"));
@@ -140,8 +132,17 @@ impl Sandbox {
                 )));
             }
 
+            let error_text = error.to_string();
+            if let Some(timeout_ms) = self.config.timeout_ms {
+                if WasmRuntime::is_epoch_timeout_error(&error) {
+                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                        "Execution timed out after {timeout_ms} ms"
+                    )));
+                }
+            }
+
             return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                error.to_string(),
+                error_text,
             ));
         }
 

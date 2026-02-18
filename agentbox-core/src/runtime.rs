@@ -2,8 +2,14 @@ use crate::vfs::VirtualFS;
 use anyhow::{bail, Context, Result};
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 use tempfile::TempDir;
-use wasmtime::{Config, Engine, Linker, ResourceLimiter, Store, StoreLimits, StoreLimitsBuilder};
+use wasmtime::{
+    Config, Engine, Linker, ResourceLimiter, Store, StoreLimits, StoreLimitsBuilder, Trap,
+};
 use wasmtime_wasi::pipe::{MemoryInputPipe, MemoryOutputPipe};
 use wasmtime_wasi::preview1::{self, WasiP1Ctx};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
@@ -20,7 +26,7 @@ pub struct WasmRuntime {
 impl WasmRuntime {
     pub fn new() -> Result<Self> {
         let mut config = Config::new();
-        config.consume_fuel(true); // Enable fuel consumption for timeouts
+        config.epoch_interruption(true);
         config.async_support(false);
 
         // Optimize for speed
@@ -46,6 +52,47 @@ impl WasmRuntime {
         store.limiter(|s| s as &mut dyn ResourceLimiter);
         store
     }
+
+    pub fn arm_epoch_timeout<T>(
+        &self,
+        store: &mut Store<T>,
+        timeout_ms: Option<u64>,
+    ) -> EpochTimeoutGuard {
+        let Some(timeout_ms) = timeout_ms else {
+            // Explicitly disable timeout for this run. With epoch interruption enabled,
+            // the default deadline is immediate and must be overridden.
+            store.set_epoch_deadline(u64::MAX);
+            return EpochTimeoutGuard { cancelled: None };
+        };
+
+        store.set_epoch_deadline(1);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancel_for_thread = Arc::clone(&cancelled);
+        let engine = self.engine.clone();
+        thread::spawn(move || {
+            thread::sleep(Duration::from_millis(timeout_ms));
+            if !cancel_for_thread.load(Ordering::Relaxed) {
+                engine.increment_epoch();
+            }
+        });
+
+        EpochTimeoutGuard {
+            cancelled: Some(cancelled),
+        }
+    }
+
+    pub fn is_epoch_timeout_error(error: &wasmtime::Error) -> bool {
+        if let Some(trap) = error.downcast_ref::<Trap>() {
+            if matches!(trap, Trap::Interrupt) {
+                return true;
+            }
+        }
+
+        error.chain().any(|cause| {
+            let lower = cause.to_string().to_ascii_lowercase();
+            lower.contains("interrupt") || lower.contains("epoch deadline")
+        })
+    }
 }
 
 pub struct WasmSession {
@@ -55,6 +102,18 @@ pub struct WasmSession {
     pub stderr_pipe: MemoryOutputPipe,
     output_limit_bytes: usize,
     sandbox_root: TempDir,
+}
+
+pub struct EpochTimeoutGuard {
+    cancelled: Option<Arc<AtomicBool>>,
+}
+
+impl Drop for EpochTimeoutGuard {
+    fn drop(&mut self) {
+        if let Some(cancelled) = &self.cancelled {
+            cancelled.store(true, Ordering::Relaxed);
+        }
+    }
 }
 
 impl WasmSession {
@@ -286,5 +345,55 @@ mod tests {
         assert!(!vfs.exists("old.txt"));
         assert_eq!(vfs.read_file("new/data.txt").unwrap(), b"new");
         assert!(!vfs.exists(INTERNAL_CODE_PATH));
+    }
+
+    #[test]
+    fn test_arm_epoch_timeout_interrupts_long_running_module() {
+        let runtime = WasmRuntime::new().unwrap();
+        let module = wasmtime::Module::new(
+            runtime.engine(),
+            r#"(module
+                (func (export "_start")
+                    (loop $loop
+                        br $loop
+                    )
+                )
+            )"#,
+        )
+        .unwrap();
+        let mut store = Store::new(runtime.engine(), ());
+        let _timeout_guard = runtime.arm_epoch_timeout(&mut store, Some(20));
+        let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+        let start = instance
+            .get_typed_func::<(), ()>(&mut store, "_start")
+            .unwrap();
+
+        let err = start
+            .call(&mut store, ())
+            .expect_err("infinite module should be interrupted by epoch timeout");
+        assert!(
+            WasmRuntime::is_epoch_timeout_error(&err),
+            "unexpected timeout error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_arm_epoch_timeout_none_keeps_execution_successful() {
+        let runtime = WasmRuntime::new().unwrap();
+        let module = wasmtime::Module::new(
+            runtime.engine(),
+            r#"(module
+                (func (export "_start"))
+            )"#,
+        )
+        .unwrap();
+        let mut store = Store::new(runtime.engine(), ());
+        let _timeout_guard = runtime.arm_epoch_timeout(&mut store, None);
+        let instance = wasmtime::Instance::new(&mut store, &module, &[]).unwrap();
+        let start = instance
+            .get_typed_func::<(), ()>(&mut store, "_start")
+            .unwrap();
+
+        start.call(&mut store, ()).unwrap();
     }
 }

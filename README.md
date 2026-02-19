@@ -93,6 +93,11 @@ print(result.stdout)
 When `allowed_modules` is set, `Sandbox.run()` statically checks `import` statements and rejects
 modules outside the allow-list with a clear `RuntimeError`.
 
+> **Note – static analysis limitation:** `allowed_modules` is a *convenience guard*, not a
+> security boundary.  Dynamic import forms such as `__import__("os")`,
+> `importlib.import_module("os")`, or `exec("import os")` are **not** detected.
+> The actual security boundary is the WebAssembly (WASM) runtime sandbox.
+
 ## 🧪 CPython WASI Repro Workflow (P1-070 to P1-077)
 
 This repository includes a debug-only CPython WASI repro harness used to investigate and prevent

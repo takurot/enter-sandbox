@@ -92,6 +92,11 @@ print(result.stdout)
 `allowed_modules` を指定すると、`Sandbox.run()` は `import` 文を静的検査し、
 許可リスト外モジュールを分かりやすい `RuntimeError` で拒否します。
 
+> **注意 – 静的解析の限界:** `allowed_modules` は *利便性のためのガード* であり、
+> セキュリティ境界ではありません。`__import__("os")`・`importlib.import_module("os")`・
+> `exec("import os")` などの動的 import 形式は**検出されません**。
+> 実際のセキュリティ境界は WebAssembly (WASM) ランタイムのサンドボックスです。
+
 ## 🧪 CPython WASI 再現手順（P1-070〜P1-077）
 
 このリポジトリには、WASI 初期化リグレッションを調査・回帰防止するための

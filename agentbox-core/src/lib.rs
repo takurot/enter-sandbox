@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 mod cpython_wasi_repro;
+mod import_policy;
 mod runtime;
 mod vfs;
 
@@ -46,21 +47,25 @@ pub struct SandboxConfig {
     timeout_ms: Option<u64>,
     #[pyo3(get, set)]
     max_output_bytes: Option<usize>,
+    #[pyo3(get, set)]
+    allowed_modules: Option<Vec<String>>,
 }
 
 #[pymethods]
 impl SandboxConfig {
     #[new]
-    #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None, max_output_bytes=None))]
+    #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None, max_output_bytes=None, allowed_modules=None))]
     fn new(
         memory_limit_mb: Option<usize>,
         timeout_ms: Option<u64>,
         max_output_bytes: Option<usize>,
+        allowed_modules: Option<Vec<String>>,
     ) -> Self {
         SandboxConfig {
             memory_limit_mb,
             timeout_ms,
             max_output_bytes,
+            allowed_modules,
         }
     }
 }
@@ -103,6 +108,7 @@ impl Sandbox {
             memory_limit_mb: Some(512),
             timeout_ms: Some(10000),
             max_output_bytes: Some(runtime::DEFAULT_MAX_OUTPUT_BYTES),
+            allowed_modules: None,
         });
 
         let runtime = WasmRuntime::new()
@@ -116,6 +122,9 @@ impl Sandbox {
     }
 
     fn run(&self, code: String) -> PyResult<SandboxResult> {
+        import_policy::enforce_allowed_modules(&code, self.config.allowed_modules.as_deref())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(e.to_string()))?;
+
         let memory_bytes = self.config.memory_limit_mb.map(|mb| mb * 1024 * 1024);
         let max_output_bytes = self.config.max_output_bytes;
 

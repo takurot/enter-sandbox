@@ -100,7 +100,7 @@
 | P1-079 | `SandboxResult` API 整合 | `Sandbox.run()` の戻り値を `SandboxResult(stdout, stderr, exit_code)` に変更し、PyO3 バインディング・`.pyi`・README・pytest を更新する | `[x]` | P1-078 |
 | P1-080 | `allowed_modules` 制御実装 | `SandboxConfig.allowed_modules` を追加し、未許可 import の遮断とユーザー向けエラーメッセージ、回帰テストを実装する | `[x]` | P1-079 |
 | P1-081 | タイムアウト強制の仕様一致 | fuel ヒューリスティクス依存を解消し、仕様どおり epoch interruption ベースの wall-clock timeout 強制とテストを実装する | `[x]` | P1-012 |
-| P1-082 | Phase1 Python E2E 拡充 | `tests/python` を正常系・異常系 20 ケース以上に拡張し、P1-051 の受け入れ条件を満たす | `[ ]` | P1-079, P1-080 |
+| P1-082 | Phase1 Python E2E 拡充 | `tests/python` を正常系・異常系 20 ケース以上に拡張し、P1-051 の受け入れ条件を満たす | `[x]` | P1-079, P1-080 |
 
 ### 1.9 リリース準備
 ... (Unchanged) ...
@@ -134,6 +134,7 @@
 - (2026-02-18) P1-081 完了。`Sandbox.run()` の fuel ヒューリスティクスを廃止して epoch interruption ベースの wall-clock timeout に切り替え。`runner-wasm` の有限 spin ディレクティブと Rust/Python 回帰テストを追加し、timeout エラー文言を固定化。
 - (2026-02-18) P1-079 完了。`Sandbox.run()` を `SandboxResult(stdout, stderr, exit_code)` 返却に変更し、PyO3 バインディング・Python スタブ・README・pytest を更新。実行エンジンは依然 Dummy `runner-wasm` のため、SPEC との実行実体ギャップは P1-078 で継続対応。
 - (2026-02-18) P1-080 完了。`SandboxConfig.allowed_modules` を追加し、`Sandbox.run()` 実行前に `import` / `from ... import` を静的検査して未許可モジュールを拒否。PyO3/スタブ/README と Rust・Python 回帰テストを更新。
+- (2026-02-22) P1-082 完了。`tests/python/test_sandbox.py` に `SandboxConfig` のデフォルト値検証および `allowed_modules` のエッジケースに関する系10件のテストを追加し、合計21ケースの E2E 網羅性を達成。
 
 ### 1.9 リリース準備
 

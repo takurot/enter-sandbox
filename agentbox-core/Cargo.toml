@@ -18,3 +18,9 @@ wasi-common = "29.0"
 anyhow = "1.0"
 tempfile = "3.14"
 
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "cold_start"
+harness = false

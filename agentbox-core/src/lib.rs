@@ -6,7 +6,9 @@ mod import_policy;
 mod runtime;
 mod vfs;
 
+#[doc(hidden)]
 pub use runtime::WasmRuntime;
+#[doc(hidden)]
 pub use vfs::VirtualFS;
 
 #[pyfunction]
@@ -56,6 +58,7 @@ pub struct SandboxConfig {
 impl SandboxConfig {
     #[new]
     #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None, max_output_bytes=None, allowed_modules=None))]
+    #[doc(hidden)]
     pub fn new(
         memory_limit_mb: Option<usize>,
         timeout_ms: Option<u64>,
@@ -96,6 +99,7 @@ const DEFAULT_MEMORY_LIMIT_MB: usize = 512;
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const BYTES_PER_MB: usize = 1024 * 1024;
 
+#[doc(hidden)]
 pub fn default_runtime_config() -> SandboxConfig {
     SandboxConfig {
         memory_limit_mb: Some(DEFAULT_MEMORY_LIMIT_MB),
@@ -105,6 +109,7 @@ pub fn default_runtime_config() -> SandboxConfig {
     }
 }
 
+#[doc(hidden)]
 pub fn execute_sandbox_run(
     runtime: &WasmRuntime,
     vfs: &VirtualFS,
@@ -175,6 +180,7 @@ fn resolve_memory_limit_bytes(memory_limit_mb: Option<usize>) -> Result<Option<u
 
 /// Execute one full `Sandbox.run()`-equivalent cycle with a fresh runtime.
 /// This is intended for cold-start benchmarks and non-Python Rust callers.
+#[doc(hidden)]
 pub fn run_code_once_for_benchmark(code: &str) -> Result<()> {
     let runtime = WasmRuntime::new().context("Failed to create Wasmtime runtime")?;
     let vfs = VirtualFS::new();

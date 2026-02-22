@@ -44,7 +44,9 @@ fn maybe_write_files(code: &str) {
         if let Some(payload) = line.strip_prefix(WRITE_FILE_DIRECTIVE_PREFIX) {
             if let Some((path, content)) = payload.split_once(':') {
                 let full_path = format!("/sandbox/{}", path);
-                let _ = fs::create_dir_all(Path::new(&full_path).parent().unwrap());
+                if let Some(parent) = Path::new(&full_path).parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
                 let _ = fs::write(full_path, content);
             }
         }

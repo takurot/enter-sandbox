@@ -6,8 +6,8 @@ mod import_policy;
 mod runtime;
 mod vfs;
 
-use runtime::WasmRuntime;
-use vfs::VirtualFS;
+pub use runtime::WasmRuntime;
+pub use vfs::VirtualFS;
 
 #[pyfunction]
 #[pyo3(signature = (profile, code=None, timeout_ms=None, max_output_bytes=None))]
@@ -56,7 +56,7 @@ pub struct SandboxConfig {
 impl SandboxConfig {
     #[new]
     #[pyo3(signature = (memory_limit_mb=None, timeout_ms=None, max_output_bytes=None, allowed_modules=None))]
-    fn new(
+    pub fn new(
         memory_limit_mb: Option<usize>,
         timeout_ms: Option<u64>,
         max_output_bytes: Option<usize>,
@@ -96,7 +96,7 @@ const DEFAULT_MEMORY_LIMIT_MB: usize = 512;
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const BYTES_PER_MB: usize = 1024 * 1024;
 
-fn default_runtime_config() -> SandboxConfig {
+pub fn default_runtime_config() -> SandboxConfig {
     SandboxConfig {
         memory_limit_mb: Some(DEFAULT_MEMORY_LIMIT_MB),
         timeout_ms: Some(DEFAULT_TIMEOUT_MS),
@@ -105,7 +105,7 @@ fn default_runtime_config() -> SandboxConfig {
     }
 }
 
-fn execute_sandbox_run(
+pub fn execute_sandbox_run(
     runtime: &WasmRuntime,
     vfs: &VirtualFS,
     config: &SandboxConfig,

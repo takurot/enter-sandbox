@@ -20,7 +20,12 @@ tempfile = "3.14"
 
 [dev-dependencies]
 criterion = "0.5"
+libc = "0.2"
 
 [[bench]]
 name = "cold_start"
+harness = false
+
+[[bench]]
+name = "memory_usage"
 harness = false

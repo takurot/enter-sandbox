@@ -9,6 +9,12 @@ pub struct VirtualFS {
     files: Arc<RwLock<HashMap<String, Vec<u8>>>>,
 }
 
+impl Default for VirtualFS {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[allow(dead_code)]
 impl VirtualFS {
     pub fn new() -> Self {

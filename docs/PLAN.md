@@ -136,7 +136,7 @@
 - (2026-02-18) P1-079 完了。`Sandbox.run()` を `SandboxResult(stdout, stderr, exit_code)` 返却に変更し、PyO3 バインディング・Python スタブ・README・pytest を更新。実行エンジンは依然 Dummy `runner-wasm` のため、SPEC との実行実体ギャップは P1-078 で継続対応。
 - (2026-02-18) P1-080 完了。`SandboxConfig.allowed_modules` を追加し、`Sandbox.run()` 実行前に `import` / `from ... import` を静的検査して未許可モジュールを拒否。PyO3/スタブ/README と Rust・Python 回帰テストを更新。
 - (2026-02-22) P1-082 完了。`tests/python/test_sandbox.py` に `SandboxConfig` のデフォルト値検証および `allowed_modules` のエッジケースに関する系10件のテストを追加し、合計21ケースの E2E 網羅性を達成。
-- (2026-02-22) P1-052 完了。`agentbox-core/benches/cold_start.rs` を追加し、`cargo bench -p agentbox-core --bench cold_start -- --noplot` で Tier1 cold start を計測（`18.690 ms / 19.755 ms / 20.585 ms`）。目標 `< 10ms` は未達のため、改善タスクを P1-083 として追加。
+- (2026-02-22) P1-052 完了。`agentbox-core/benches/cold_start.rs` を追加し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を計測（`18.690 ms / 19.755 ms / 20.585 ms`）。目標 `< 10ms` は未達のため、改善タスクを P1-083 として追加。
 
 ### 1.9 リリース準備
 

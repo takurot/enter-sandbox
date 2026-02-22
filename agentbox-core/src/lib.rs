@@ -94,6 +94,7 @@ impl SandboxResult {
 
 const DEFAULT_MEMORY_LIMIT_MB: usize = 512;
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
+const BYTES_PER_MB: usize = 1024 * 1024;
 
 fn default_runtime_config() -> SandboxConfig {
     SandboxConfig {
@@ -113,7 +114,7 @@ fn execute_sandbox_run(
     import_policy::enforce_allowed_modules(code, config.allowed_modules.as_deref())
         .map_err(|e| anyhow!(e.to_string()))?;
 
-    let memory_bytes = config.memory_limit_mb.map(|mb| mb * 1024 * 1024);
+    let memory_bytes = resolve_memory_limit_bytes(config.memory_limit_mb)?;
     let max_output_bytes = config.max_output_bytes;
 
     let session = runtime::WasmSession::new(memory_bytes, max_output_bytes, code, vfs)
@@ -161,6 +162,15 @@ fn execute_sandbox_run(
     let stdout = String::from_utf8_lossy(store.data().stdout_pipe.contents().as_ref()).to_string();
     let stderr = String::from_utf8_lossy(store.data().stderr_pipe.contents().as_ref()).to_string();
     Ok(SandboxResult::success(stdout, stderr))
+}
+
+fn resolve_memory_limit_bytes(memory_limit_mb: Option<usize>) -> Result<Option<usize>> {
+    memory_limit_mb
+        .map(|mb| {
+            mb.checked_mul(BYTES_PER_MB)
+                .ok_or_else(|| anyhow!("memory_limit_mb={mb} is too large to convert to bytes"))
+        })
+        .transpose()
 }
 
 /// Execute one full `Sandbox.run()`-equivalent cycle with a fresh runtime.
@@ -221,4 +231,28 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_memory_limit_bytes_converts_mb_to_bytes() {
+        let bytes = resolve_memory_limit_bytes(Some(16)).expect("conversion should succeed");
+        assert_eq!(bytes, Some(16 * BYTES_PER_MB));
+    }
+
+    #[test]
+    fn resolve_memory_limit_bytes_rejects_overflowing_values() {
+        let overflowing_mb = (usize::MAX / BYTES_PER_MB) + 1;
+        let error = resolve_memory_limit_bytes(Some(overflowing_mb))
+            .expect_err("overflowing values must return an error");
+        assert!(
+            error
+                .to_string()
+                .contains("is too large to convert to bytes"),
+            "unexpected error: {error}"
+        );
+    }
 }

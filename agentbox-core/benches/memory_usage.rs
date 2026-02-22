@@ -48,11 +48,18 @@ fn run_cold_scenario() {
     for i in 0..5 {
         agentbox_core::run_code_once_for_benchmark("print('hello')")
             .expect("sandbox run should succeed");
-        
+
         let current_rss = get_max_rss_kb().unwrap_or(0);
-        println!("Cold Run {:2}: Peak RSS: {} KB (process peak)", i + 1, current_rss);
+        println!(
+            "Cold Run {:2}: Peak RSS: {} KB (process peak)",
+            i + 1,
+            current_rss
+        );
     }
-    println!("Final Peak for Cold Scenario: {} KB", get_max_rss_kb().unwrap_or(0));
+    println!(
+        "Final Peak for Cold Scenario: {} KB",
+        get_max_rss_kb().unwrap_or(0)
+    );
 }
 
 fn run_warm_scenario() {
@@ -64,9 +71,16 @@ fn run_warm_scenario() {
     for i in 0..10 {
         agentbox_core::execute_sandbox_run(&runtime, &vfs, &config, "print('hello')")
             .expect("sandbox run should succeed");
-        
+
         let current_rss = get_max_rss_kb().unwrap_or(0);
-        println!("Warm Run {:2}: Peak RSS: {} KB (process peak)", i + 1, current_rss);
+        println!(
+            "Warm Run {:2}: Peak RSS: {} KB (process peak)",
+            i + 1,
+            current_rss
+        );
     }
-    println!("Final Peak for Warm Scenario: {} KB", get_max_rss_kb().unwrap_or(0));
+    println!(
+        "Final Peak for Warm Scenario: {} KB",
+        get_max_rss_kb().unwrap_or(0)
+    );
 }

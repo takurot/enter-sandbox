@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2026-02-18  
+> **最終更新:** 2026-02-24  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -77,7 +77,7 @@
 | P1-051 | Python 統合テスト | `pytest` で SDK の E2E テスト（正常系・異常系 20ケース以上） | `[x]` | P1-042 |
 | P1-052 | 起動時間ベンチマーク | `criterion` で cold start 計測。目標: < 10ms | `[x]` | P1-041 |
 | P1-053 | メモリベンチマーク | 実行中のピークメモリ使用量計測 | `[x]` | P1-041 |
-| P1-054 | CI ベンチマーク統合 | PR ごとに性能リグレッションを検出する仕組み | `[ ]` | P1-003, P1-052 |
+| P1-054 | CI ベンチマーク統合 | PR ごとに性能リグレッションを検出する仕組み | `[x]` | P1-003, P1-052 |
 | P1-083 | Cold start 最適化 | P1-052 の計測結果をもとに Wasmtime/runner 初期化を改善し、中央値 < 10ms を達成する | `[ ]` | P1-052 |
 
 ### 1.7 CPython WASI 問題調査・対処
@@ -138,6 +138,7 @@
 - (2026-02-22) P1-082 完了。`tests/python/test_sandbox.py` に `SandboxConfig` のデフォルト値検証および `allowed_modules` のエッジケースに関する系10件のテストを追加し、合計21ケースの E2E 網羅性を達成。
 - (2026-02-22) P1-052 完了。`agentbox-core/benches/cold_start.rs` を追加し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を計測（`18.690 ms / 19.755 ms / 20.585 ms`）。目標 `< 10ms` は未達のため、改善タスクを P1-083 として追加。
 - (2026-02-22) P1-053 完了。`agentbox-core/benches/memory_usage.rs` を追加。Dummy Runner での Peak RSS は約 30MB。実行ごとに Peak RSS が微増することを確認。原因として `Sandbox.run` ごとの `Module` 再コンパイルが疑われるため、キャッシュ機構の導入が有効と考えられる。
+- (2026-02-24) P1-054 完了。`scripts/check_tier1_benchmarks.py` を追加し、`cold_start` の中央値(ms)と `memory_usage` warm シナリオの Peak RSS(KB)を閾値チェックしてPRでリグレッション検出する仕組みを導入。`.github/workflows/ci.yml` の Rust job に PR 専用ステップを追加し、`tests/python/test_tier1_benchmark_guard.py` で回帰判定スクリプトの E2E 検証を追加。
 
 ### 1.9 リリース準備
 
@@ -303,7 +304,7 @@
 | CI-002 | Python lint & テスト | `ruff`, `mypy`, `pytest` | `[ ]` | P1-003 |
 | CI-003 | クロスプラットフォームビルド | Linux (x86_64, aarch64), macOS (x86_64, aarch64), Windows | `[ ]` | CI-001 |
 | CI-004 | カバレッジ計測 | `cargo-llvm-cov` + `pytest-cov`、Codecov 連携 | `[ ]` | CI-001, CI-002 |
-| CI-005 | ベンチマーク CI | PR ごとに `criterion` ベンチマーク実行、リグレッション検出 | `[ ]` | P1-054 |
+| CI-005 | ベンチマーク CI | PR ごとに `criterion` ベンチマーク実行、リグレッション検出 | `[x]` | P1-054 |
 | CI-006 | セキュリティスキャン | `cargo-audit`, `pip-audit`, Dependabot | `[ ]` | CI-001, CI-002 |
 
 ### 継続的デリバリー

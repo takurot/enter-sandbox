@@ -41,6 +41,9 @@ jobs:
       - name: Format Core
         run: cargo fmt --all -- --check
         working-directory: agentbox-core
+      - name: Benchmark regression guard (PR)
+        if: github.event_name == 'pull_request'
+        run: python3 scripts/check_tier1_benchmarks.py
 
   python:
     name: Python

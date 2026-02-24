@@ -30,6 +30,7 @@ DEFAULT_MEMORY_COMMAND = [
 
 DEFAULT_COLD_START_THRESHOLD_MS = 80.0
 DEFAULT_WARM_PEAK_THRESHOLD_KB = 80 * 1024
+DEFAULT_COMMAND_TIMEOUT_SEC = 600.0
 
 CRITERION_TIME_PATTERN = re.compile(
     r"time:\s*\[\s*([0-9]+(?:\.[0-9]+)?)\s*([a-zA-Zµμ]+)\s+"
@@ -89,6 +90,12 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_MEMORY_COMMAND,
         help="Command used for the memory benchmark.",
     )
+    parser.add_argument(
+        "--command-timeout-sec",
+        type=float,
+        default=DEFAULT_COMMAND_TIMEOUT_SEC,
+        help=("Timeout in seconds for each benchmark command. Set to <=0 to disable timeout."),
+    )
     return parser.parse_args()
 
 
@@ -123,9 +130,29 @@ def load_output_from_file(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def run_command(command: Sequence[str]) -> str:
+def run_command(command: Sequence[str], *, timeout_sec: float) -> str:
     print("Running: {command}".format(command=" ".join(command)))
-    run = subprocess.run(list(command), capture_output=True, text=True)
+    timeout = timeout_sec if timeout_sec > 0 else None
+    try:
+        run = subprocess.run(
+            list(command),
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as error:
+        output = "{stdout}\n{stderr}".format(
+            stdout=error.stdout or "",
+            stderr=error.stderr or "",
+        )
+        raise TimeoutError(
+            "Command timed out after {timeout:.1f} seconds: {command}\n{output}".format(
+                timeout=timeout_sec,
+                command=" ".join(command),
+                output=output,
+            )
+        ) from error
+
     output = "{stdout}\n{stderr}".format(stdout=run.stdout, stderr=run.stderr)
     if run.returncode != 0:
         raise RuntimeError(
@@ -142,11 +169,12 @@ def acquire_output(
     *,
     output_file: Optional[Path],
     command: Sequence[str],
+    timeout_sec: float,
 ) -> str:
     if output_file is not None:
         print("Reading benchmark output from: {path}".format(path=output_file))
         return load_output_from_file(output_file)
-    return run_command(command)
+    return run_command(command, timeout_sec=timeout_sec)
 
 
 def main() -> int:
@@ -156,10 +184,12 @@ def main() -> int:
         cold_output = acquire_output(
             output_file=args.cold_start_output_file,
             command=args.cold_start_command,
+            timeout_sec=args.command_timeout_sec,
         )
         memory_output = acquire_output(
             output_file=args.memory_output_file,
             command=args.memory_command,
+            timeout_sec=args.command_timeout_sec,
         )
 
         cold_start_median_ms = parse_cold_start_median_ms(cold_output)

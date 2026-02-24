@@ -88,3 +88,34 @@ def test_tier1_benchmark_guard_fails_when_threshold_is_exceeded(tmp_path: Path):
     assert "Benchmark regression guard failed:" in run.stderr
     assert "Cold start median 40.000 ms exceeds threshold 30.000 ms" in run.stderr
     assert "Warm peak RSS 90000 KB exceeds threshold 80000 KB" in run.stderr
+
+
+def test_tier1_benchmark_guard_fails_fast_when_command_times_out(tmp_path: Path):
+    sleeper_script = tmp_path / "sleeper.py"
+    sleeper_script.write_text("import time\ntime.sleep(2)\n", encoding="utf-8")
+
+    memory_output = tmp_path / "memory_output.txt"
+    memory_output.write_text(
+        ("--- Tier 1 Memory Usage Benchmark ---\nFinal Peak for Warm Scenario: 30000 KB\n"),
+        encoding="utf-8",
+    )
+
+    run = subprocess.run(
+        [
+            sys.executable,
+            str(SCRIPT_PATH),
+            "--command-timeout-sec",
+            "1",
+            "--cold-start-command",
+            sys.executable,
+            str(sleeper_script),
+            "--memory-output-file",
+            str(memory_output),
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert run.returncode == 2
+    assert "Benchmark regression guard failed to collect metrics:" in run.stdout
+    assert "Command timed out after 1.0 seconds" in run.stdout

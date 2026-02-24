@@ -152,3 +152,52 @@ def test_sandbox_allowed_modules_dynamic_import_limitation():
     # It passes the static analysis blocker. The actual runtime behavior is tested separately.
     result = box.run("os = __import__('os')\nprint('ok')")
     assert result.exit_code == 0
+
+
+def test_sandbox_vfs_persistence():
+    """Verify that files written in one run are preserved for the next."""
+    box = Sandbox()
+
+    # Step 1: Write a file via the Dummy Runner directive
+    box.run("__agentbox_write_file=test_dir/file.txt:preserved_content\nprint('step 1 ok')")
+
+    # Step 2: In a separate run, verify that the file exists by including its content in output
+    result = box.run("__agentbox_read_file=test_dir/file.txt\nprint('step 2 ok')")
+
+    assert result.exit_code == 0
+    assert "File test_dir/file.txt: preserved_content" in result.stdout
+
+
+def test_sandbox_run_empty_code():
+    box = Sandbox()
+    result = box.run("")
+    assert result.exit_code == 0
+    assert "Executing code: " in result.stdout
+
+
+def test_sandbox_utf8_handling():
+    box = Sandbox()
+    # UTF-8 in code and expected in stdout
+    code = "print('こんにちは, 🌍')"
+    result = box.run(code)
+    assert result.exit_code == 0
+    assert "Executing code: print('こんにちは, 🌍')" in result.stdout
+    assert "Start Execution" in result.stdout
+
+
+def test_sandbox_run_multiple_consecutive():
+    box = Sandbox()
+    for i in range(5):
+        result = box.run(f"print('run {i}')")
+        assert result.exit_code == 0
+        assert f"run {i}" in result.stdout
+
+
+def test_sandbox_vfs_directive_rejects_parent_traversal():
+    box = Sandbox()
+    code = "__agentbox_write_file=../escape.txt:hack\n__agentbox_read_file=../escape.txt"
+    result = box.run(code)
+
+    assert result.exit_code == 0
+    assert "Invalid directive path: ../escape.txt" in result.stderr
+    assert "File ../escape.txt" not in result.stdout

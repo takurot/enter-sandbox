@@ -76,7 +76,7 @@
 | P1-050 | ユニットテスト整備 | 各 Rust モジュールに `#[cfg(test)]` でテスト追加。カバレッジ 80% 目標 | `[x]` | P1-023, P1-033 |
 | P1-051 | Python 統合テスト | `pytest` で SDK の E2E テスト（正常系・異常系 20ケース以上） | `[x]` | P1-042 |
 | P1-052 | 起動時間ベンチマーク | `criterion` で cold start 計測。目標: < 10ms | `[x]` | P1-041 |
-| P1-053 | メモリベンチマーク | 実行中のピークメモリ使用量計測 | `[ ]` | P1-041 |
+| P1-053 | メモリベンチマーク | 実行中のピークメモリ使用量計測 | `[x]` | P1-041 |
 | P1-054 | CI ベンチマーク統合 | PR ごとに性能リグレッションを検出する仕組み | `[ ]` | P1-003, P1-052 |
 | P1-083 | Cold start 最適化 | P1-052 の計測結果をもとに Wasmtime/runner 初期化を改善し、中央値 < 10ms を達成する | `[ ]` | P1-052 |
 
@@ -137,6 +137,7 @@
 - (2026-02-18) P1-080 完了。`SandboxConfig.allowed_modules` を追加し、`Sandbox.run()` 実行前に `import` / `from ... import` を静的検査して未許可モジュールを拒否。PyO3/スタブ/README と Rust・Python 回帰テストを更新。
 - (2026-02-22) P1-082 完了。`tests/python/test_sandbox.py` に `SandboxConfig` のデフォルト値検証および `allowed_modules` のエッジケースに関する系10件のテストを追加し、合計21ケースの E2E 網羅性を達成。
 - (2026-02-22) P1-052 完了。`agentbox-core/benches/cold_start.rs` を追加し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を計測（`18.690 ms / 19.755 ms / 20.585 ms`）。目標 `< 10ms` は未達のため、改善タスクを P1-083 として追加。
+- (2026-02-22) P1-053 完了。`agentbox-core/benches/memory_usage.rs` を追加。Dummy Runner での Peak RSS は約 30MB。実行ごとに Peak RSS が微増することを確認。原因として `Sandbox.run` ごとの `Module` 再コンパイルが疑われるため、キャッシュ機構の導入が有効と考えられる。
 
 ### 1.9 リリース準備
 

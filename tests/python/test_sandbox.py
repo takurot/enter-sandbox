@@ -191,3 +191,13 @@ def test_sandbox_run_multiple_consecutive():
         result = box.run(f"print('run {i}')")
         assert result.exit_code == 0
         assert f"run {i}" in result.stdout
+
+
+def test_sandbox_vfs_directive_rejects_parent_traversal():
+    box = Sandbox()
+    code = "__agentbox_write_file=../escape.txt:hack\n__agentbox_read_file=../escape.txt"
+    result = box.run(code)
+
+    assert result.exit_code == 0
+    assert "Invalid directive path: ../escape.txt" in result.stderr
+    assert "File ../escape.txt" not in result.stdout

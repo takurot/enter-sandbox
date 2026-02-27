@@ -173,6 +173,8 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 
 - [Functional Specification (SPEC.md)](docs/SPEC.md) (Japanese)
 - [Implementation Plan (PLAN.md)](docs/PLAN.md) (Japanese)
+- [Versioning Strategy (VERSIONING.md)](docs/VERSIONING.md)
+- [Changelog](CHANGELOG.md)
 - [Research Report (RESEARCH.md)](docs/RESEARCH.md) (Japanese)
 - [CPython WASI repro assets](assets/cpython-wasi/README.md)
 

@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2026-02-24  
+> **最終更新:** 2026-02-27  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -139,12 +139,13 @@
 - (2026-02-22) P1-052 完了。`agentbox-core/benches/cold_start.rs` を追加し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を計測（`18.690 ms / 19.755 ms / 20.585 ms`）。目標 `< 10ms` は未達のため、改善タスクを P1-083 として追加。
 - (2026-02-22) P1-053 完了。`agentbox-core/benches/memory_usage.rs` を追加。Dummy Runner での Peak RSS は約 30MB。実行ごとに Peak RSS が微増することを確認。原因として `Sandbox.run` ごとの `Module` 再コンパイルが疑われるため、キャッシュ機構の導入が有効と考えられる。
 - (2026-02-24) P1-054 完了。`scripts/check_tier1_benchmarks.py` を追加し、`cold_start` の中央値(ms)と `memory_usage` warm シナリオの Peak RSS(KB)を閾値チェックしてPRでリグレッション検出する仕組みを導入。`.github/workflows/ci.yml` の Rust job に PR 専用ステップを追加し、`tests/python/test_tier1_benchmark_guard.py` で回帰判定スクリプトの E2E 検証を追加。
+- (2026-02-27) P1-060 完了。`scripts/build_pypi_artifacts.py` を追加して `maturin build --release` と `maturin sdist` による配布物生成を標準化。`pyproject.toml` に PyPI 向け metadata（classifiers/keywords/project.urls）を追記し、`tests/python/test_build_pypi_artifacts.py` で dry-run ベースの E2E 検証を追加。
 
 ### 1.9 リリース準備
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-060 | PyPI パッケージング | maturin で wheel ビルド、`pyproject.toml` メタデータ整備 | `[ ]` | P1-043 |
+| P1-060 | PyPI パッケージング | maturin で wheel ビルド、`pyproject.toml` メタデータ整備 | `[x]` | P1-043 |
 | P1-061 | リリース CI | GitHub Release → PyPI 自動公開ワークフロー | `[ ]` | P1-060 |
 | P1-062 | バージョニング戦略 | SemVer 運用ルール、CHANGELOG.md 作成 | `[ ]` | P1-060 |
 

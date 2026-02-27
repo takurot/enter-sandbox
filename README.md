@@ -176,6 +176,20 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - [Research Report (RESEARCH.md)](docs/RESEARCH.md) (Japanese)
 - [CPython WASI repro assets](assets/cpython-wasi/README.md)
 
+## 📦 Packaging (PyPI)
+
+Build release artifacts (wheel + sdist):
+
+```bash
+python3 scripts/build_pypi_artifacts.py --out-dir dist
+```
+
+Inspect commands without building:
+
+```bash
+python3 scripts/build_pypi_artifacts.py --dry-run
+```
+
 ## 🤝 Contributing
 
 EnterSandBox is planned to be developed as an open-source project.

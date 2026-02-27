@@ -23,13 +23,22 @@ def _cargo_package_version() -> str:
     return match.group(1)
 
 
+def _runner_wasm_version() -> str:
+    cargo_text = (REPO_ROOT / "runner-wasm" / "Cargo.toml").read_text(encoding="utf-8")
+    match = re.search(r'^version\s*=\s*"([^"]+)"', cargo_text, re.MULTILINE)
+    assert match is not None, "Runner wasm version must be declared."
+    return match.group(1)
+
+
 def test_versions_are_semver_and_in_sync():
     pyproject_version = _python_package_version()
     cargo_version = _cargo_package_version()
+    runner_wasm_version = _runner_wasm_version()
 
     assert SEMVER_PATTERN.fullmatch(pyproject_version), pyproject_version
     assert SEMVER_PATTERN.fullmatch(cargo_version), cargo_version
-    assert pyproject_version == cargo_version
+    assert SEMVER_PATTERN.fullmatch(runner_wasm_version), runner_wasm_version
+    assert pyproject_version == cargo_version == runner_wasm_version
 
 
 def test_changelog_contains_unreleased_and_current_release_section():

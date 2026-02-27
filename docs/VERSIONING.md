@@ -6,6 +6,7 @@ This document defines how EnterSandBox versions releases and maintains changelog
 
 - Applies to the published Python package `agentbox`.
 - Applies to the Rust crate `agentbox-core` used by maturin.
+- Applies to the Rust crate `runner-wasm` that is bundled.
 
 ## 2. SemVer Policy
 
@@ -23,6 +24,7 @@ Release versions must stay in sync across:
 
 - `pyproject.toml` -> `[project].version`
 - `agentbox-core/Cargo.toml` -> `[package].version`
+- `runner-wasm/Cargo.toml` -> `[package].version`
 
 Do not publish if these versions diverge.
 
@@ -43,7 +45,7 @@ Do not publish if these versions diverge.
 ## 6. Release Checklist
 
 1. Confirm all release-targeted changes are listed under `Unreleased` in `CHANGELOG.md`.
-2. Bump versions in `pyproject.toml` and `agentbox-core/Cargo.toml` to the same `X.Y.Z`.
+2. Bump versions in `pyproject.toml`, `agentbox-core/Cargo.toml`, and `runner-wasm/Cargo.toml` to the same `X.Y.Z`.
 3. Rename `Unreleased` entries into `## [X.Y.Z] - YYYY-MM-DD` and recreate an empty `Unreleased` section.
 4. Run quality gates:
    - `ruff check python/ scripts/ tests/`
@@ -51,6 +53,8 @@ Do not publish if these versions diverge.
    - `pytest tests/python`
    - `cargo test --manifest-path agentbox-core/Cargo.toml`
    - `cargo clippy --manifest-path agentbox-core/Cargo.toml -- -D warnings`
+   - `cargo test --manifest-path runner-wasm/Cargo.toml`
+   - `cargo clippy --manifest-path runner-wasm/Cargo.toml -- -D warnings`
 5. Create release commit (example): `chore(release): vX.Y.Z`.
 6. Tag and push:
    - `git tag vX.Y.Z`

@@ -64,3 +64,14 @@ def test_build_pypi_artifacts_rejects_skip_all():
 
     assert run.returncode == 2
     assert "At least one artifact type must be enabled." in run.stderr
+
+
+def test_python_metadata_matches_abi3_baseline():
+    pyproject_text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    cargo_text = (REPO_ROOT / "agentbox-core" / "Cargo.toml").read_text(encoding="utf-8")
+
+    assert "abi3-py310" in cargo_text
+    assert 'requires-python = ">=3.10"' in pyproject_text
+    assert '"Programming Language :: Python :: 3.10"' in pyproject_text
+    assert '"Programming Language :: Python :: 3.8"' not in pyproject_text
+    assert '"Programming Language :: Python :: 3.9"' not in pyproject_text

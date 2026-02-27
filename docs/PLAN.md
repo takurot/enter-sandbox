@@ -141,6 +141,7 @@
 - (2026-02-24) P1-054 完了。`scripts/check_tier1_benchmarks.py` を追加し、`cold_start` の中央値(ms)と `memory_usage` warm シナリオの Peak RSS(KB)を閾値チェックしてPRでリグレッション検出する仕組みを導入。`.github/workflows/ci.yml` の Rust job に PR 専用ステップを追加し、`tests/python/test_tier1_benchmark_guard.py` で回帰判定スクリプトの E2E 検証を追加。
 - (2026-02-27) P1-060 完了。`scripts/build_pypi_artifacts.py` を追加して `maturin build --release` と `maturin sdist` による配布物生成を標準化。`pyproject.toml` に PyPI 向け metadata（classifiers/keywords/project.urls）を追記し、`tests/python/test_build_pypi_artifacts.py` で dry-run ベースの E2E 検証を追加。
 - (2026-02-27) P1-061 完了。`.github/workflows/release.yml` を追加し、GitHub Release `published` / `workflow_dispatch` をトリガに `scripts/build_pypi_artifacts.py` で配布物を生成して PyPI へ公開する CI を実装。`tests/python/test_release_workflow.py` で workflow 契約の E2E 検証を追加。
+- (2026-02-27) P1-062 完了。`CHANGELOG.md` と `docs/VERSIONING.md` を追加し、SemVer の運用ルールと GitHub Release ベースの公開手順を文書化。`tests/python/test_versioning_strategy.py` で version 同期・SemVer 形式・ドキュメント参照を E2E 検証できるようにした。
 
 ### 1.9 リリース準備
 
@@ -148,7 +149,7 @@
 | --- | --- | --- | --- | --- |
 | P1-060 | PyPI パッケージング | maturin で wheel ビルド、`pyproject.toml` メタデータ整備 | `[x]` | P1-043 |
 | P1-061 | リリース CI | GitHub Release → PyPI 自動公開ワークフロー | `[x]` | P1-060 |
-| P1-062 | バージョニング戦略 | SemVer 運用ルール、CHANGELOG.md 作成 | `[ ]` | P1-060 |
+| P1-062 | バージョニング戦略 | SemVer 運用ルール、CHANGELOG.md 作成 | `[x]` | P1-060 |
 
 ---
 

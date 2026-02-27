@@ -172,6 +172,8 @@ pytest -q tests/python/test_cpython_wasi_repro.py
 
 - [機能仕様書 (SPEC.md)](docs/SPEC.md)
 - [実装計画 (PLAN.md)](docs/PLAN.md)
+- [バージョニング戦略 (VERSIONING.md)](docs/VERSIONING.md)
+- [変更履歴 (CHANGELOG.md)](CHANGELOG.md)
 - [リサーチレポート (RESEARCH.md)](docs/RESEARCH.md)
 - [CPython WASI 再現アセット](assets/cpython-wasi/README.md)
 

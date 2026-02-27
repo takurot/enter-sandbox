@@ -116,12 +116,28 @@ def run_commands(
     return 0
 
 
+def build_runner_wasm(dry_run: bool) -> int:
+    command = ["cargo", "build", "--target", "wasm32-wasip1", "--release"]
+    print(f"$ {command_to_string(command)} (in runner-wasm)")
+    if dry_run:
+        return 0
+
+    repo_root = Path(__file__).resolve().parents[1]
+    run = subprocess.run(command, cwd=repo_root / "runner-wasm")
+    return run.returncode
+
+
 def main() -> int:
     args = parse_args()
 
     if args.skip_wheel and args.skip_sdist:
         print("At least one artifact type must be enabled.", file=sys.stderr)
         return 2
+
+    runner_code = build_runner_wasm(args.dry_run)
+    if runner_code != 0:
+        print("Failed to build runner-wasm.", file=sys.stderr)
+        return runner_code
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     commands = build_commands(args)

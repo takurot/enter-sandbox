@@ -78,7 +78,7 @@
 | P1-052 | 起動時間ベンチマーク | `criterion` で cold start 計測。目標: < 10ms | `[x]` | P1-041 |
 | P1-053 | メモリベンチマーク | 実行中のピークメモリ使用量計測 | `[x]` | P1-041 |
 | P1-054 | CI ベンチマーク統合 | PR ごとに性能リグレッションを検出する仕組み | `[x]` | P1-003, P1-052 |
-| P1-083 | Cold start 最適化 | P1-052 の計測結果をもとに Wasmtime/runner 初期化を改善し、中央値 < 10ms を達成する | `[ ]` | P1-052 |
+| P1-083 | Cold start 最適化 | P1-052 の計測結果をもとに Wasmtime/runner 初期化を改善し、中央値 < 10ms を達成する | `[x]` | P1-052 |
 
 ### 1.7 CPython WASI 問題調査・対処
 
@@ -142,6 +142,7 @@
 - (2026-02-27) P1-060 完了。`scripts/build_pypi_artifacts.py` を追加して `maturin build --release` と `maturin sdist` による配布物生成を標準化。`pyproject.toml` に PyPI 向け metadata（classifiers/keywords/project.urls）を追記し、`tests/python/test_build_pypi_artifacts.py` で dry-run ベースの E2E 検証を追加。
 - (2026-02-27) P1-061 完了。`.github/workflows/release.yml` を追加し、GitHub Release `published` / `workflow_dispatch` をトリガに `scripts/build_pypi_artifacts.py` で配布物を生成して PyPI へ公開する CI を実装。`tests/python/test_release_workflow.py` で workflow 契約の E2E 検証を追加。
 - (2026-02-27) P1-062 完了。`CHANGELOG.md` と `docs/VERSIONING.md` を追加し、SemVer の運用ルールと GitHub Release ベースの公開手順を文書化。`tests/python/test_versioning_strategy.py` で version 同期・SemVer 形式・ドキュメント参照を E2E 検証できるようにした。
+- (2026-02-27) P1-083 完了。`WasmRuntime` を共有 Engine + 共有 compiled module のキャッシュ構造へ変更し、`Sandbox.run()` ごとの `Module::new` を廃止。`runtime` ユニットテストでキャッシュ再利用を固定化し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を `762.98 µs / 777.91 µs / 793.86 µs` まで改善（目標 `< 10ms` を達成）。
 
 ### 1.9 リリース準備
 

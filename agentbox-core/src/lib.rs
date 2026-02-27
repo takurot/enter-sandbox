@@ -131,12 +131,8 @@ pub fn execute_sandbox_run(
     let mut store = runtime.create_store(session);
     runtime.arm_epoch_timeout(&mut store, config.timeout_ms);
 
-    const WASM: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm"));
-    let module = wasmtime::Module::new(runtime.engine(), WASM)
-        .context("Failed to compile runner wasm module")?;
-
     let instance = linker
-        .instantiate(&mut store, &module)
+        .instantiate(&mut store, runtime.module())
         .context("Failed to instantiate runner wasm module")?;
     let start = instance
         .get_typed_func::<(), ()>(&mut store, "_start")

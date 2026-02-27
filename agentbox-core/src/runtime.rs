@@ -1,14 +1,14 @@
 use crate::vfs::VirtualFS;
 use anyhow::{bail, Context, Result};
+use once_cell::sync::OnceCell;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
 use wasmtime::{
-    Config, Engine, Linker, ResourceLimiter, Store, StoreLimits, StoreLimitsBuilder, Trap,
+    Config, Engine, Linker, Module, ResourceLimiter, Store, StoreLimits, StoreLimitsBuilder, Trap,
 };
 use wasmtime_wasi::pipe::{MemoryInputPipe, MemoryOutputPipe};
 use wasmtime_wasi::preview1::{self, WasiP1Ctx};
@@ -19,52 +19,43 @@ const INTERNAL_CODE_PATH: &str = "__agentbox_internal__/code.py";
 const INTERNAL_PATH_PREFIX: &str = "__agentbox_internal__/";
 const EPOCH_TICK_INTERVAL_MS: u64 = 1;
 const NO_TIMEOUT_EPOCH_DEADLINE_TICKS: u64 = u64::MAX / 2;
+const RUNNER_WASM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm"));
 
 pub struct WasmRuntime {
+    shared: Arc<SharedRuntimeState>,
+}
+
+struct SharedRuntimeState {
     engine: Engine,
-    epoch_ticker_stop: Arc<AtomicBool>,
+    module: Module,
 }
 
 impl WasmRuntime {
     pub fn new() -> Result<Self> {
-        let mut config = Config::new();
-        config.epoch_interruption(true);
-        config.async_support(false);
-
-        // Optimize for speed
-        // config.cranelift_opt_level(wasmtime::OptLevel::Speed);
-
-        let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
-        let epoch_ticker_stop = Arc::new(AtomicBool::new(false));
-        let ticker_stop = Arc::clone(&epoch_ticker_stop);
-        let ticker_engine = engine.clone();
-
-        thread::spawn(move || {
-            while !ticker_stop.load(Ordering::Relaxed) {
-                thread::sleep(Duration::from_millis(EPOCH_TICK_INTERVAL_MS));
-                ticker_engine.increment_epoch();
-            }
-        });
-
-        Ok(Self {
-            engine,
-            epoch_ticker_stop,
-        })
+        static SHARED_RUNTIME_STATE: OnceCell<Arc<SharedRuntimeState>> = OnceCell::new();
+        let shared = SHARED_RUNTIME_STATE
+            .get_or_try_init(init_shared_runtime_state)?
+            .clone();
+        Ok(Self { shared })
     }
 
     pub fn engine(&self) -> &Engine {
-        &self.engine
+        &self.shared.engine
+    }
+
+    pub fn module(&self) -> &Module {
+        &self.shared.module
     }
 
     pub fn create_linker(&self) -> Result<Linker<WasmSession>> {
-        let mut linker = Linker::new(&self.engine);
+        let mut linker = Linker::new(self.engine());
         preview1::add_to_linker_sync(&mut linker, |s: &mut WasmSession| &mut s.wasi_ctx)
             .context("Failed to link WASI preview1")?;
         Ok(linker)
     }
 
     pub fn create_store(&self, session: WasmSession) -> Store<WasmSession> {
-        let mut store = Store::new(&self.engine, session);
+        let mut store = Store::new(self.engine(), session);
         store.limiter(|s| s as &mut dyn ResourceLimiter);
         store
     }
@@ -95,9 +86,34 @@ impl WasmRuntime {
     }
 }
 
-impl Drop for WasmRuntime {
-    fn drop(&mut self) {
-        self.epoch_ticker_stop.store(true, Ordering::Relaxed);
+fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
+    let mut config = Config::new();
+    config.epoch_interruption(true);
+    config.async_support(false);
+
+    let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
+    spawn_epoch_ticker(engine.clone())?;
+    let module =
+        Module::new(&engine, RUNNER_WASM_BYTES).context("Failed to compile runner wasm module")?;
+
+    Ok(Arc::new(SharedRuntimeState { engine, module }))
+}
+
+fn spawn_epoch_ticker(engine: Engine) -> Result<()> {
+    thread::Builder::new()
+        .name("agentbox-epoch-ticker".to_string())
+        .spawn(move || loop {
+            thread::sleep(Duration::from_millis(EPOCH_TICK_INTERVAL_MS));
+            engine.increment_epoch();
+        })
+        .context("Failed to spawn epoch ticker thread")?;
+    Ok(())
+}
+
+impl WasmRuntime {
+    #[cfg(test)]
+    fn shared_ptr(&self) -> *const SharedRuntimeState {
+        Arc::as_ptr(&self.shared)
     }
 }
 
@@ -307,6 +323,22 @@ mod tests {
     fn test_io_creation() {
         let vfs = VirtualFS::new();
         let _session = WasmSession::new(Some(1024), None, "print('hello')", &vfs).unwrap();
+    }
+
+    #[test]
+    fn test_wasm_runtime_reuses_engine_across_instances() {
+        let first = WasmRuntime::new().unwrap();
+        let second = WasmRuntime::new().unwrap();
+
+        assert_eq!(first.shared_ptr(), second.shared_ptr());
+        assert!(
+            std::ptr::eq(first.engine(), second.engine()),
+            "WasmRuntime should reuse a shared Engine across instances"
+        );
+        assert!(
+            std::ptr::eq(first.module(), second.module()),
+            "WasmRuntime should reuse a shared compiled runner module across instances"
+        );
     }
 
     #[test]

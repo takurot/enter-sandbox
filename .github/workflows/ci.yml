@@ -26,9 +26,6 @@ jobs:
           key: cpython-wasi-${{ runner.os }}-${{ hashFiles('assets/cpython-wasi/manifest.json') }}
       - name: Prepare CPython WASI assets
         run: python3 scripts/prepare_cpython_wasi_assets.py
-      - name: Build Runner (Wasm)
-        run: cargo build --target wasm32-wasip1 --release
-        working-directory: runner-wasm
       - name: Build Core
         run: cargo build --verbose
         working-directory: agentbox-core
@@ -71,9 +68,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest maturin
-      - name: Build Runner (Wasm)
-        run: cargo build --target wasm32-wasip1 --release
-        working-directory: runner-wasm
       - name: Ruff check
         run: ruff check python/ scripts/ tests/
       - name: Ruff format

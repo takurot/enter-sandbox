@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use once_cell::sync::OnceCell;
 use std::fs;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -28,6 +28,21 @@ pub struct WasmRuntime {
 struct SharedRuntimeState {
     engine: Engine,
     module: Module,
+    ticker_state: Arc<TickerState>,
+}
+
+struct TickerState {
+    active_sandboxes: Mutex<usize>,
+    condvar: Condvar,
+}
+
+impl TickerState {
+    fn new() -> Arc<Self> {
+        Arc::new(Self {
+            active_sandboxes: Mutex::new(0),
+            condvar: Condvar::new(),
+        })
+    }
 }
 
 impl WasmRuntime {
@@ -84,6 +99,28 @@ impl WasmRuntime {
             lower.contains("interrupt") || lower.contains("epoch deadline")
         })
     }
+
+    pub fn begin_execution(&self) -> ExecutionGuard {
+        let mut count = self.shared.ticker_state.active_sandboxes.lock().unwrap();
+        *count += 1;
+        if *count == 1 {
+            self.shared.ticker_state.condvar.notify_one();
+        }
+        ExecutionGuard {
+            state: Arc::clone(&self.shared.ticker_state),
+        }
+    }
+}
+
+pub struct ExecutionGuard {
+    state: Arc<TickerState>,
+}
+
+impl Drop for ExecutionGuard {
+    fn drop(&mut self) {
+        let mut count = self.state.active_sandboxes.lock().unwrap();
+        *count -= 1;
+    }
 }
 
 fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
@@ -92,17 +129,28 @@ fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
     config.async_support(false);
 
     let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
-    spawn_epoch_ticker(engine.clone())?;
+    let ticker_state = TickerState::new();
+    spawn_epoch_ticker(engine.clone(), Arc::clone(&ticker_state))?;
     let module =
         Module::new(&engine, RUNNER_WASM_BYTES).context("Failed to compile runner wasm module")?;
 
-    Ok(Arc::new(SharedRuntimeState { engine, module }))
+    Ok(Arc::new(SharedRuntimeState {
+        engine,
+        module,
+        ticker_state,
+    }))
 }
 
-fn spawn_epoch_ticker(engine: Engine) -> Result<()> {
+fn spawn_epoch_ticker(engine: Engine, state: Arc<TickerState>) -> Result<()> {
     thread::Builder::new()
         .name("agentbox-epoch-ticker".to_string())
         .spawn(move || loop {
+            let mut active = state.active_sandboxes.lock().unwrap();
+            while *active == 0 {
+                active = state.condvar.wait(active).unwrap();
+            }
+            drop(active);
+
             thread::sleep(Duration::from_millis(EPOCH_TICK_INTERVAL_MS));
             engine.increment_epoch();
         })
@@ -394,6 +442,7 @@ mod tests {
             .get_typed_func::<(), ()>(&mut store, "_start")
             .unwrap();
 
+        let _guard = runtime.begin_execution();
         let err = start
             .call(&mut store, ())
             .expect_err("infinite module should be interrupted by epoch timeout");
@@ -420,6 +469,7 @@ mod tests {
             .get_typed_func::<(), ()>(&mut store, "_start")
             .unwrap();
 
+        let _guard = runtime.begin_execution();
         start.call(&mut store, ()).unwrap();
     }
 }

@@ -138,6 +138,7 @@ pub fn execute_sandbox_run(
         .get_typed_func::<(), ()>(&mut store, "_start")
         .context("Failed to resolve _start export from runner wasm module")?;
 
+    let _guard = runtime.begin_execution();
     if let Err(error) = start.call(&mut store, ()) {
         if store.data().output_limit_exceeded() {
             return Err(anyhow!(

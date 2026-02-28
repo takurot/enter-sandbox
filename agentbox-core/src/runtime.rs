@@ -132,11 +132,15 @@ fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
     let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
     let ticker_state = TickerState::new();
     spawn_epoch_ticker(engine.clone(), Arc::clone(&ticker_state))?;
-    
+
     let runtime_dir = cpython_runtime_dir();
     let wasm_path = runtime_dir.join("python.wasm");
-    let module =
-        Module::from_file(&engine, &wasm_path).with_context(|| format!("Failed to load CPython WASI module from {}", wasm_path.display()))?;
+    let module = Module::from_file(&engine, &wasm_path).with_context(|| {
+        format!(
+            "Failed to load CPython WASI module from {}",
+            wasm_path.display()
+        )
+    })?;
 
     Ok(Arc::new(SharedRuntimeState {
         engine,
@@ -270,12 +274,16 @@ fn materialize_virtual_fs(vfs: &VirtualFS, code: &str) -> Result<TempDir> {
     }
 
     write_relative_file(sandbox_root.path(), INTERNAL_CODE_PATH, code.as_bytes())?;
-    
+
     let bootstrap = format!(
         "import os\nos.chdir('/sandbox')\nexec(open('/sandbox/{}').read(), {{'__name__': '__main__'}})",
         INTERNAL_CODE_PATH
     );
-    write_relative_file(sandbox_root.path(), INTERNAL_BOOTSTRAP_PATH, bootstrap.as_bytes())?;
+    write_relative_file(
+        sandbox_root.path(),
+        INTERNAL_BOOTSTRAP_PATH,
+        bootstrap.as_bytes(),
+    )?;
     Ok(sandbox_root)
 }
 

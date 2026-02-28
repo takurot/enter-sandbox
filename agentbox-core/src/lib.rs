@@ -257,7 +257,7 @@ mod tests {
         let runtime = WasmRuntime::new().unwrap();
         let vfs = VirtualFS::new();
         let config = default_runtime_config();
-        
+
         let code = "import sys; sys.exit(42)";
         let result = execute_sandbox_run(&runtime, &vfs, &config, code).unwrap();
         assert_eq!(result.exit_code, 42);
@@ -267,9 +267,10 @@ mod tests {
     fn test_sandbox_run_imports_from_vfs() {
         let runtime = WasmRuntime::new().unwrap();
         let vfs = VirtualFS::new();
-        vfs.write_file("helper.py", b"def get_value(): return 123").unwrap();
+        vfs.write_file("helper.py", b"def get_value(): return 123")
+            .unwrap();
         let config = default_runtime_config();
-        
+
         let code = "import helper; print(helper.get_value())";
         let result = execute_sandbox_run(&runtime, &vfs, &config, code).unwrap();
         assert_eq!(result.stdout.trim(), "123");

@@ -45,9 +45,9 @@
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-020 | RustPython WASM ビルド | RustPython を `wasm32-wasip1` でビルド。**標準ライブラリ(Lib/)を同梱または仮想FSへマウントする仕組みを構築** | `[/]` | P1-001 |
-| P1-021 | Python コード実行パイプライン | ユーザーコードを RustPython wasm モジュールに渡し、stdout/stderr をキャプチャ | `[x]` | P1-010, P1-020 |
-| P1-022 | 標準ライブラリ確認 | `json`, `re`, `datetime`, `collections` 等の標準ライブラリがロード可能か検証・修正 | `[ ]` | P1-021 |
+| P1-020 | RustPython WASM ビルド | RustPython を `wasm32-wasip1` でビルド。 | `[x]` | P1-001 |
+| P1-021 | Python コード実行パイプライン | ユーザーコードを WASM モジュールに渡し、stdout/stderr をキャプチャ | `[x]` | P1-010, P1-020 |
+| P1-022 | 標準ライブラリ確認 | `json`, `re`, `datetime`, `collections` 等の標準ライブラリがロード可能か検証・修正 | `[x]` | P1-021 |
 | P1-023 | エラーハンドリング | Python 例外 → Rust Result 変換、ユーザーフレンドリーなエラーメッセージ生成 | `[x]` | P1-021 |
 
 ### 1.4 メモリ内仮想ファイルシステム
@@ -97,7 +97,7 @@
 
 | ID | タスク | 詳細 | ステータス | 依存 |
 | --- | --- | --- | --- | --- |
-| P1-078 | Tier1 実行エンジン実体化 | Dummy `runner-wasm` を RustPython 実行器に置換し、`Sandbox.run()` が実際の Python 実行結果（stdout/stderr）を返すようにする | `[ ]` | P1-020 |
+| P1-078 | Tier1 実行エンジン実体化 | Dummy `runner-wasm` を CPython WASI 実行器に置換し、`Sandbox.run()` が実際の Python 実行結果（stdout/stderr/exit_code）を返すようにする | `[x]` | P1-020, P1-075 |
 | P1-079 | `SandboxResult` API 整合 | `Sandbox.run()` の戻り値を `SandboxResult(stdout, stderr, exit_code)` に変更し、PyO3 バインディング・`.pyi`・README・pytest を更新する | `[x]` | P1-078 |
 | P1-080 | `allowed_modules` 制御実装 | `SandboxConfig.allowed_modules` を追加し、未許可 import の遮断とユーザー向けエラーメッセージ、回帰テストを実装する | `[x]` | P1-079 |
 | P1-081 | タイムアウト強制の仕様一致 | fuel ヒューリスティクス依存を解消し、仕様どおり epoch interruption ベースの wall-clock timeout 強制とテストを実装する | `[x]` | P1-012 |
@@ -143,6 +143,7 @@
 - (2026-02-27) P1-061 完了。`.github/workflows/release.yml` を追加し、GitHub Release `published` / `workflow_dispatch` をトリガに `scripts/build_pypi_artifacts.py` で配布物を生成して PyPI へ公開する CI を実装。`tests/python/test_release_workflow.py` で workflow 契約の E2E 検証を追加。
 - (2026-02-27) P1-062 完了。`CHANGELOG.md` と `docs/VERSIONING.md` を追加し、SemVer の運用ルールと GitHub Release ベースの公開手順を文書化。`tests/python/test_versioning_strategy.py` で version 同期・SemVer 形式・ドキュメント参照を E2E 検証できるようにした。
 - (2026-02-27) P1-083 完了。`WasmRuntime` を共有 Engine + 共有 compiled module のキャッシュ構造へ変更し、`Sandbox.run()` ごとの `Module::new` を廃止。`runtime` ユニットテストでキャッシュ再利用を固定化し、`cargo bench --manifest-path agentbox-core/Cargo.toml --bench cold_start -- --noplot` で Tier1 cold start を `762.98 µs / 777.91 µs / 793.86 µs` まで改善（目標 `< 10ms` を達成）。
+- (2026-02-28) P1-078/P1-022 完了。Dummy Runner を CPython WASI に置換し、終了コードの捕捉、VFS インポート、標準ライブラリの動作を Rust/Python 双方のテストで検証。Cold start 中央値は約 23.8ms となった。
 
 ### 1.9 リリース準備
 

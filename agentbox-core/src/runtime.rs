@@ -10,16 +10,16 @@ use tempfile::TempDir;
 use wasmtime::{
     Config, Engine, Linker, Module, ResourceLimiter, Store, StoreLimits, StoreLimitsBuilder, Trap,
 };
-use wasmtime_wasi::pipe::{MemoryInputPipe, MemoryOutputPipe};
+use wasmtime_wasi::pipe::MemoryOutputPipe;
 use wasmtime_wasi::preview1::{self, WasiP1Ctx};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
 const INTERNAL_CODE_PATH: &str = "__agentbox_internal__/code.py";
+const INTERNAL_BOOTSTRAP_PATH: &str = "__agentbox_internal__/bootstrap.py";
 const INTERNAL_PATH_PREFIX: &str = "__agentbox_internal__/";
 const EPOCH_TICK_INTERVAL_MS: u64 = 1;
 const NO_TIMEOUT_EPOCH_DEADLINE_TICKS: u64 = u64::MAX / 2;
-const RUNNER_WASM_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/runner-wasm.wasm"));
 
 pub struct WasmRuntime {
     shared: Arc<SharedRuntimeState>,
@@ -127,18 +127,26 @@ fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
     let mut config = Config::new();
     config.epoch_interruption(true);
     config.async_support(false);
+    config.wasm_backtrace(true);
 
     let engine = Engine::new(&config).context("Failed to create Wasmtime Engine")?;
     let ticker_state = TickerState::new();
     spawn_epoch_ticker(engine.clone(), Arc::clone(&ticker_state))?;
+    
+    let runtime_dir = cpython_runtime_dir();
+    let wasm_path = runtime_dir.join("python.wasm");
     let module =
-        Module::new(&engine, RUNNER_WASM_BYTES).context("Failed to compile runner wasm module")?;
+        Module::from_file(&engine, &wasm_path).with_context(|| format!("Failed to load CPython WASI module from {}", wasm_path.display()))?;
 
     Ok(Arc::new(SharedRuntimeState {
         engine,
         module,
         ticker_state,
     }))
+}
+
+fn cpython_runtime_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets/cpython-wasi/runtime")
 }
 
 fn spawn_epoch_ticker(engine: Engine, state: Arc<TickerState>) -> Result<()> {
@@ -188,9 +196,18 @@ impl WasmSession {
 
         let mut builder = WasiCtxBuilder::new();
         builder
-            .stdin(MemoryInputPipe::new(code.as_bytes().to_vec()))
             .stdout(stdout_pipe.clone())
             .stderr(stderr_pipe.clone())
+            .env("PYTHONPATH", "/sandbox")
+            .arg("python3")
+            .arg(format!("/sandbox/{}", INTERNAL_BOOTSTRAP_PATH))
+            .preopened_dir(
+                cpython_runtime_dir(),
+                "/",
+                DirPerms::all(),
+                FilePerms::all(),
+            )
+            .context("Failed to preopen CPython runtime")?
             .preopened_dir(
                 sandbox_root.path(),
                 "/sandbox",
@@ -253,6 +270,12 @@ fn materialize_virtual_fs(vfs: &VirtualFS, code: &str) -> Result<TempDir> {
     }
 
     write_relative_file(sandbox_root.path(), INTERNAL_CODE_PATH, code.as_bytes())?;
+    
+    let bootstrap = format!(
+        "import os\nos.chdir('/sandbox')\nexec(open('/sandbox/{}').read(), {{'__name__': '__main__'}})",
+        INTERNAL_CODE_PATH
+    );
+    write_relative_file(sandbox_root.path(), INTERNAL_BOOTSTRAP_PATH, bootstrap.as_bytes())?;
     Ok(sandbox_root)
 }
 

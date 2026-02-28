@@ -1,5 +1,5 @@
-import pytest
-from agentbox import Sandbox, SandboxConfig
+from agentbox import Sandbox
+
 
 def test_stdlib_json():
     sb = Sandbox()
@@ -11,6 +11,7 @@ print(json.dumps(data))
     result = sb.run(code)
     assert result.exit_code == 0
     assert result.stdout.strip() == '{"a": 1, "b": [2, 3]}'
+
 
 def test_stdlib_re():
     sb = Sandbox()
@@ -24,6 +25,7 @@ if match:
     assert result.exit_code == 0
     assert result.stdout.strip() == "123"
 
+
 def test_stdlib_datetime():
     sb = Sandbox()
     code = """
@@ -34,6 +36,7 @@ print(d.isoformat())
     result = sb.run(code)
     assert result.exit_code == 0
     assert result.stdout.strip() == "2026-02-28"
+
 
 def test_stdlib_collections():
     sb = Sandbox()
@@ -50,6 +53,7 @@ print(d["x"])
     assert "5" in result.stdout
     assert "1" in result.stdout
 
+
 def test_stdlib_math_random():
     sb = Sandbox()
     code = """
@@ -64,28 +68,29 @@ print(random.randint(1, 100))
     assert result.exit_code == 0
     assert "4" in result.stdout
 
+
 def test_vfs_import_cross_file():
     sb = Sandbox()
-    # We don't have a direct VFS write API in Sandbox yet, 
+    # We don't have a direct VFS write API in Sandbox yet,
     # but Sandbox uses a shared VFS internally.
-    # However, each Sandbox.run() currently creates a fresh VFS? 
+    # However, each Sandbox.run() currently creates a fresh VFS?
     # Let's check Sandbox implementation in lib.rs.
     # Sandbox { runtime, vfs, config } -> vfs is persistent for the Sandbox instance!
-    
+
     # Let's first verify if Sandbox.vfs is shared across runs.
     # In lib.rs:
     # fn run(&self, code: String) -> PyResult<SandboxResult> {
     #     execute_sandbox_run(&self.runtime, &self.vfs, &self.config, &code)
     # }
-    
+
     # execute_sandbox_run calls sync_back_to_vfs at the end.
-    
+
     code_write = """
 with open("myself.py", "w") as f:
     f.write("def hello(): return 'world'")
 """
     sb.run(code_write)
-    
+
     code_read = """
 import myself
 print(myself.hello())
@@ -96,10 +101,12 @@ print(myself.hello())
     assert result.exit_code == 0
     assert result.stdout.strip() == "world"
 
+
 def test_sys_exit_code():
     sb = Sandbox()
     result = sb.run("import sys; sys.exit(123)")
     assert result.exit_code == 123
+
 
 def test_pythonpath_includes_sandbox():
     sb = Sandbox()
@@ -111,7 +118,7 @@ with open("subdir/mod.py", "w") as f:
     f.write("VAL = 42")
 """
     sb.run(code_setup)
-    
+
     code_test = """
 import sys
 import subdir.mod

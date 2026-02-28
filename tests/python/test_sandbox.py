@@ -108,7 +108,9 @@ def test_sandbox_allowed_modules_ignores_relative_imports():
     box = Sandbox(SandboxConfig(allowed_modules=[]))
     # Even with an empty allow-list, relative imports must not raise a static analysis block.
     # At runtime, this will fail because it's not a package, so we catch it.
-    result = box.run("try:\n    from . import utils\nexcept (ImportError, ValueError):\n    pass\nprint('ok')")
+    result = box.run(
+        "try:\n    from . import utils\nexcept (ImportError, ValueError):\n    pass\nprint('ok')"
+    )
     assert result.exit_code == 0
     assert result.stdout.strip() == "ok"
 
@@ -174,6 +176,7 @@ def test_sandbox_run_empty_code():
     assert result.exit_code == 0
     assert result.stdout == ""
 
+
 def test_sandbox_utf8_handling():
     box = Sandbox()
     # UTF-8 in code and expected in stdout
@@ -200,5 +203,13 @@ def test_sandbox_vfs_directive_rejects_parent_traversal():
     result = box.run(code)
 
     # In WASI, this should fail at the system call level (likely FileNotFoundError, PermissionError, or Operation not permitted)
-    assert result.exit_code == 0 # Exception caught
-    assert any(msg in result.stdout for msg in ["No such file or directory", "not found", "Permission denied", "Operation not permitted"])
+    assert result.exit_code == 0  # Exception caught
+    assert any(
+        msg in result.stdout
+        for msg in [
+            "No such file or directory",
+            "not found",
+            "Permission denied",
+            "Operation not permitted",
+        ]
+    )

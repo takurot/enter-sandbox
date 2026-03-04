@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Sequence
 
 DEFAULT_OUT_DIR = Path("dist")
 DEFAULT_MANIFEST_PATH = Path("agentbox-core/Cargo.toml")
+DEFAULT_ASSET_CHECK_SCRIPT = Path("scripts/prepare_cpython_wasi_assets.py")
 ABI3_FORWARD_COMPAT_ENV = "PYO3_USE_ABI3_FORWARD_COMPATIBILITY"
 
 
@@ -116,14 +117,13 @@ def run_commands(
     return 0
 
 
-def build_runner_wasm(dry_run: bool) -> int:
-    command = ["cargo", "build", "--target", "wasm32-wasip1", "--release"]
-    print(f"$ {command_to_string(command)} (in runner-wasm)")
+def check_runtime_assets(dry_run: bool, repo_root: Path) -> int:
+    command = [sys.executable, str(DEFAULT_ASSET_CHECK_SCRIPT), "--check-only"]
+    print(f"$ {command_to_string(command)}")
     if dry_run:
         return 0
 
-    repo_root = Path(__file__).resolve().parents[1]
-    run = subprocess.run(command, cwd=repo_root / "runner-wasm")
+    run = subprocess.run(command, cwd=repo_root)
     return run.returncode
 
 
@@ -134,10 +134,15 @@ def main() -> int:
         print("At least one artifact type must be enabled.", file=sys.stderr)
         return 2
 
-    runner_code = build_runner_wasm(args.dry_run)
-    if runner_code != 0:
-        print("Failed to build runner-wasm.", file=sys.stderr)
-        return runner_code
+    repo_root = Path(__file__).resolve().parents[1]
+    asset_check_code = check_runtime_assets(args.dry_run, repo_root)
+    if asset_check_code != 0:
+        print(
+            "CPython WASI runtime assets are missing or invalid. "
+            "Run `python3 scripts/prepare_cpython_wasi_assets.py` first.",
+            file=sys.stderr,
+        )
+        return asset_check_code
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     commands = build_commands(args)

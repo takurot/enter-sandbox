@@ -213,3 +213,22 @@ def test_sandbox_vfs_directive_rejects_parent_traversal():
             "Operation not permitted",
         ]
     )
+
+
+def test_sandbox_rejects_absolute_path_write_outside_sandbox():
+    box = Sandbox()
+    code = (
+        "try:\n"
+        "    with open('/escape_abs.txt', 'w') as f:\n"
+        "        f.write('hack')\n"
+        "    print('WRITE_SUCCEEDED')\n"
+        "except Exception as e:\n"
+        "    print(type(e).__name__)"
+    )
+    result = box.run(code)
+
+    assert result.exit_code == 0
+    assert "WRITE_SUCCEEDED" not in result.stdout
+    assert any(
+        name in result.stdout for name in ["PermissionError", "OSError", "FileNotFoundError"]
+    )

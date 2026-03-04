@@ -15,9 +15,11 @@ use wasmtime_wasi::preview1::{self, WasiP1Ctx};
 use wasmtime_wasi::{DirPerms, FilePerms, WasiCtxBuilder};
 
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 8 * 1024 * 1024;
+pub const CPYTHON_WASI_RUNTIME_DIR_ENV: &str = "AGENTBOX_CPYTHON_WASI_RUNTIME_DIR";
 const INTERNAL_CODE_PATH: &str = "__agentbox_internal__/code.py";
 const INTERNAL_BOOTSTRAP_PATH: &str = "__agentbox_internal__/bootstrap.py";
 const INTERNAL_PATH_PREFIX: &str = "__agentbox_internal__/";
+const CPYTHON_RUNTIME_RELATIVE_PATH: &str = "assets/cpython-wasi/runtime";
 const EPOCH_TICK_INTERVAL_MS: u64 = 1;
 const NO_TIMEOUT_EPOCH_DEADLINE_TICKS: u64 = u64::MAX / 2;
 
@@ -28,6 +30,7 @@ pub struct WasmRuntime {
 struct SharedRuntimeState {
     engine: Engine,
     module: Module,
+    runtime_dir: PathBuf,
     ticker_state: Arc<TickerState>,
 }
 
@@ -60,6 +63,10 @@ impl WasmRuntime {
 
     pub fn module(&self) -> &Module {
         &self.shared.module
+    }
+
+    pub fn runtime_dir(&self) -> &Path {
+        self.shared.runtime_dir.as_path()
     }
 
     pub fn create_linker(&self) -> Result<Linker<WasmSession>> {
@@ -133,8 +140,14 @@ fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
     let ticker_state = TickerState::new();
     spawn_epoch_ticker(engine.clone(), Arc::clone(&ticker_state))?;
 
-    let runtime_dir = cpython_runtime_dir();
+    let runtime_dir = resolve_cpython_runtime_dir()?;
     let wasm_path = runtime_dir.join("python.wasm");
+    if !wasm_path.is_file() {
+        bail!(
+            "CPython WASI module not found: {}. Run `python3 scripts/prepare_cpython_wasi_assets.py` from the repository root.",
+            wasm_path.display()
+        );
+    }
     let module = Module::from_file(&engine, &wasm_path).with_context(|| {
         format!(
             "Failed to load CPython WASI module from {}",
@@ -145,12 +158,42 @@ fn init_shared_runtime_state() -> Result<Arc<SharedRuntimeState>> {
     Ok(Arc::new(SharedRuntimeState {
         engine,
         module,
+        runtime_dir,
         ticker_state,
     }))
 }
 
-fn cpython_runtime_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets/cpython-wasi/runtime")
+pub fn resolve_cpython_runtime_dir() -> Result<PathBuf> {
+    if let Ok(raw) = std::env::var(CPYTHON_WASI_RUNTIME_DIR_ENV) {
+        let configured = PathBuf::from(raw);
+        if configured.is_dir() {
+            return Ok(configured);
+        }
+        bail!(
+            "CPython WASI runtime directory from {} not found: {}",
+            CPYTHON_WASI_RUNTIME_DIR_ENV,
+            configured.display()
+        );
+    }
+
+    let current_dir =
+        std::env::current_dir().context("Failed to resolve current working directory")?;
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let candidates = [
+        current_dir.join(CPYTHON_RUNTIME_RELATIVE_PATH),
+        current_dir.join("../").join(CPYTHON_RUNTIME_RELATIVE_PATH),
+        manifest_dir.join("../").join(CPYTHON_RUNTIME_RELATIVE_PATH),
+    ];
+    for candidate in candidates {
+        if candidate.is_dir() {
+            return Ok(candidate);
+        }
+    }
+
+    bail!(
+        "CPython WASI runtime directory not found. Set {} or run `python3 scripts/prepare_cpython_wasi_assets.py` from the repository root.",
+        CPYTHON_WASI_RUNTIME_DIR_ENV
+    )
 }
 
 fn spawn_epoch_ticker(engine: Engine, state: Arc<TickerState>) -> Result<()> {
@@ -192,6 +235,7 @@ impl WasmSession {
         max_output_bytes: Option<usize>,
         code: &str,
         vfs: &VirtualFS,
+        runtime_dir: &Path,
     ) -> Result<Self> {
         let sandbox_root = materialize_virtual_fs(vfs, code)?;
         let output_limit_bytes = resolve_output_limit(max_output_bytes)?;
@@ -205,12 +249,7 @@ impl WasmSession {
             .env("PYTHONPATH", "/sandbox")
             .arg("python3")
             .arg(format!("/sandbox/{}", INTERNAL_BOOTSTRAP_PATH))
-            .preopened_dir(
-                cpython_runtime_dir(),
-                "/",
-                DirPerms::all(),
-                FilePerms::all(),
-            )
+            .preopened_dir(runtime_dir, "/", DirPerms::READ, FilePerms::READ)
             .context("Failed to preopen CPython runtime")?
             .preopened_dir(
                 sandbox_root.path(),
@@ -401,7 +440,9 @@ mod tests {
     #[test]
     fn test_io_creation() {
         let vfs = VirtualFS::new();
-        let _session = WasmSession::new(Some(1024), None, "print('hello')", &vfs).unwrap();
+        let runtime_dir = resolve_cpython_runtime_dir().unwrap();
+        let _session =
+            WasmSession::new(Some(1024), None, "print('hello')", &vfs, &runtime_dir).unwrap();
     }
 
     #[test]
@@ -416,7 +457,7 @@ mod tests {
         );
         assert!(
             std::ptr::eq(first.module(), second.module()),
-            "WasmRuntime should reuse a shared compiled runner module across instances"
+            "WasmRuntime should reuse a shared compiled CPython WASI module across instances"
         );
     }
 
@@ -424,8 +465,9 @@ mod tests {
     fn test_materialize_virtual_fs_includes_user_files_and_code() {
         let vfs = VirtualFS::new();
         vfs.write_file("input/data.txt", b"payload").unwrap();
+        let runtime_dir = resolve_cpython_runtime_dir().unwrap();
 
-        let session = WasmSession::new(None, None, "print('hello')", &vfs).unwrap();
+        let session = WasmSession::new(None, None, "print('hello')", &vfs, &runtime_dir).unwrap();
         let root = session.sandbox_root.path();
 
         assert_eq!(fs::read(root.join("input/data.txt")).unwrap(), b"payload");
@@ -439,8 +481,9 @@ mod tests {
     fn test_sync_back_to_vfs_reflects_creates_and_deletes() {
         let vfs = VirtualFS::new();
         vfs.write_file("old.txt", b"old").unwrap();
+        let runtime_dir = resolve_cpython_runtime_dir().unwrap();
 
-        let session = WasmSession::new(None, None, "print('hello')", &vfs).unwrap();
+        let session = WasmSession::new(None, None, "print('hello')", &vfs, &runtime_dir).unwrap();
         let root = session.sandbox_root.path();
         fs::remove_file(root.join("old.txt")).unwrap();
         write_relative_file(root, "new/data.txt", b"new").unwrap();

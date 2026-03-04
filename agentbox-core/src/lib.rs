@@ -112,8 +112,14 @@ pub fn execute_sandbox_run(
     let memory_bytes = resolve_memory_limit_bytes(config.memory_limit_mb)?;
     let max_output_bytes = config.max_output_bytes;
 
-    let session = runtime::WasmSession::new(memory_bytes, max_output_bytes, code, vfs)
-        .context("Failed to initialize wasm session")?;
+    let session = runtime::WasmSession::new(
+        memory_bytes,
+        max_output_bytes,
+        code,
+        vfs,
+        runtime.runtime_dir(),
+    )
+    .context("Failed to initialize wasm session")?;
     let linker = runtime
         .create_linker()
         .context("Failed to initialize wasm linker")?;
@@ -123,10 +129,10 @@ pub fn execute_sandbox_run(
 
     let instance = linker
         .instantiate(&mut store, runtime.module())
-        .context("Failed to instantiate runner wasm module")?;
+        .context("Failed to instantiate CPython WASI module")?;
     let start = instance
         .get_typed_func::<(), ()>(&mut store, "_start")
-        .context("Failed to resolve _start export from runner wasm module")?;
+        .context("Failed to resolve _start export from CPython WASI module")?;
 
     let _guard = runtime.begin_execution();
     let call_result = start.call(&mut store, ());
@@ -187,8 +193,9 @@ fn resolve_memory_limit_bytes(memory_limit_mb: Option<usize>) -> Result<Option<u
         .transpose()
 }
 
-/// Execute one full `Sandbox.run()`-equivalent cycle with a fresh runtime.
-/// This is intended for cold-start benchmarks and non-Python Rust callers.
+/// Execute one full `Sandbox.run()`-equivalent cycle.
+/// This entrypoint is intended for benchmark and non-Python Rust callers.
+/// Note: `WasmRuntime` internally shares the Engine/Module cache process-wide.
 #[doc(hidden)]
 pub fn run_code_once_for_benchmark(code: &str) -> Result<()> {
     let runtime = WasmRuntime::new().context("Failed to create Wasmtime runtime")?;

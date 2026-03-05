@@ -1,0 +1,23 @@
+{
+  "name": "enter-sandbox-phase2",
+  "image": "ghcr.io/devcontainers/base:ubuntu-24.04",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "stable",
+      "profile": "default"
+    }
+  },
+  "postCreateCommand": "rustup target add wasm32-wasip1 && pip3 install -r requirements-dev.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "ms-python.python",
+        "charliermarsh.ruff"
+      ]
+    }
+  }
+}

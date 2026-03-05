@@ -56,4 +56,4 @@ def test_firecracker_dev_environment_files_exist():
     assert "scripts/prepare_cpython_wasi_assets.py" in devcontainer
     assert 'Vagrant.configure("2")' in vagrantfile
     assert "ubuntu/jammy64" in vagrantfile
-    assert 'cd /workspace && python3 scripts/prepare_cpython_wasi_assets.py' in vagrantfile
+    assert "cd /workspace && python3 scripts/prepare_cpython_wasi_assets.py" in vagrantfile

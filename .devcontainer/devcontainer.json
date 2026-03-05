@@ -10,7 +10,7 @@
       "profile": "default"
     }
   },
-  "postCreateCommand": "rustup target add wasm32-wasip1 && pip3 install -r requirements-dev.txt",
+  "postCreateCommand": "rustup target add wasm32-wasip1 && pip3 install -r requirements-dev.txt && python3 scripts/prepare_cpython_wasi_assets.py",
   "customizations": {
     "vscode": {
       "extensions": [

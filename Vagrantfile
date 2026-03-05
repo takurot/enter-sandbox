@@ -17,5 +17,6 @@ Vagrant.configure("2") do |config|
       su - vagrant -c "curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal"
     fi
     su - vagrant -c "/home/vagrant/.cargo/bin/rustup target add wasm32-wasip1"
+    su - vagrant -c "cd /workspace && python3 scripts/prepare_cpython_wasi_assets.py"
   SHELL
 end

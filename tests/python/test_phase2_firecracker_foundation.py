@@ -53,5 +53,7 @@ def test_firecracker_dev_environment_files_exist():
 
     assert '"name": "enter-sandbox-phase2"' in devcontainer
     assert "ghcr.io/devcontainers/base:ubuntu-24.04" in devcontainer
+    assert "scripts/prepare_cpython_wasi_assets.py" in devcontainer
     assert 'Vagrant.configure("2")' in vagrantfile
     assert "ubuntu/jammy64" in vagrantfile
+    assert 'cd /workspace && python3 scripts/prepare_cpython_wasi_assets.py' in vagrantfile

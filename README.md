@@ -174,6 +174,7 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - [Functional Specification (SPEC.md)](docs/SPEC.md) (Japanese)
 - [Implementation Plan (PLAN.md)](docs/PLAN.md) (Japanese)
 - [Firecracker Dev Environment (FIRECRACKER_DEV.md)](docs/FIRECRACKER_DEV.md)
+- [Firecracker Rootfs Build (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
 - [Versioning Strategy (VERSIONING.md)](docs/VERSIONING.md)
 - [Changelog](CHANGELOG.md)
 - [Research Report (RESEARCH.md)](docs/RESEARCH.md) (Japanese)

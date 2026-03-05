@@ -9,9 +9,7 @@ def test_sandbox_run_basic():
     result = box.run(code)
 
     assert isinstance(result, SandboxResult)
-    assert "Start Execution" in result.stdout
-    assert "Executing code: print('Hello')" in result.stdout
-    assert "End Execution" in result.stdout
+    assert result.stdout.strip() == "Hello"
     assert result.stderr == ""
     assert result.exit_code == 0
 
@@ -32,7 +30,8 @@ def test_sandbox_config():
 
 def test_sandbox_output_limit_error_message():
     box = Sandbox(SandboxConfig(max_output_bytes=1024))
-    code = "x" * 5000
+    # Actually print more than the limit
+    code = "print('x' * 5000)"
 
     with pytest.raises(RuntimeError, match="max_output_bytes"):
         box.run(code)
@@ -40,7 +39,8 @@ def test_sandbox_output_limit_error_message():
 
 def test_sandbox_timeout_error_message():
     box = Sandbox(SandboxConfig(timeout_ms=20))
-    code = "__agentbox_spin_ms=250\nprint('slow')"
+    # Real Python infinite loop or long loop
+    code = "while True: pass"
 
     with pytest.raises(RuntimeError, match="Execution timed out after 20 ms"):
         box.run(code)
@@ -105,12 +105,14 @@ def test_sandbox_allowed_modules_allows_parenthesised_from_import_when_permitted
 
 def test_sandbox_allowed_modules_ignores_relative_imports():
     """Relative imports (from . import x) are skipped, not blocked."""
-    # Even with an empty allow-list, relative imports must not raise.
     box = Sandbox(SandboxConfig(allowed_modules=[]))
-    # The Dummy runner won't actually execute Python, so we just check that
-    # enforce_allowed_modules does not raise before reaching the WASM layer.
-    result = box.run("from . import utils\nprint('ok')")
+    # Even with an empty allow-list, relative imports must not raise a static analysis block.
+    # At runtime, this will fail because it's not a package, so we catch it.
+    result = box.run(
+        "try:\n    from . import utils\nexcept (ImportError, ValueError):\n    pass\nprint('ok')"
+    )
     assert result.exit_code == 0
+    assert result.stdout.strip() == "ok"
 
 
 def test_sandbox_config_defaults():
@@ -158,21 +160,21 @@ def test_sandbox_vfs_persistence():
     """Verify that files written in one run are preserved for the next."""
     box = Sandbox()
 
-    # Step 1: Write a file via the Dummy Runner directive
-    box.run("__agentbox_write_file=test_dir/file.txt:preserved_content\nprint('step 1 ok')")
+    # Step 1: Write a file via Python
+    box.run("with open('test_file.txt', 'w') as f: f.write('preserved_content')")
 
     # Step 2: In a separate run, verify that the file exists by including its content in output
-    result = box.run("__agentbox_read_file=test_dir/file.txt\nprint('step 2 ok')")
+    result = box.run("with open('test_file.txt', 'r') as f: print(f.read())")
 
     assert result.exit_code == 0
-    assert "File test_dir/file.txt: preserved_content" in result.stdout
+    assert result.stdout.strip() == "preserved_content"
 
 
 def test_sandbox_run_empty_code():
     box = Sandbox()
     result = box.run("")
     assert result.exit_code == 0
-    assert "Executing code: " in result.stdout
+    assert result.stdout == ""
 
 
 def test_sandbox_utf8_handling():
@@ -181,8 +183,7 @@ def test_sandbox_utf8_handling():
     code = "print('こんにちは, 🌍')"
     result = box.run(code)
     assert result.exit_code == 0
-    assert "Executing code: print('こんにちは, 🌍')" in result.stdout
-    assert "Start Execution" in result.stdout
+    assert result.stdout.strip() == "こんにちは, 🌍"
 
 
 def test_sandbox_run_multiple_consecutive():
@@ -194,10 +195,40 @@ def test_sandbox_run_multiple_consecutive():
 
 
 def test_sandbox_vfs_directive_rejects_parent_traversal():
+    """Verify that file writes outside the sandbox are not allowed."""
     box = Sandbox()
-    code = "__agentbox_write_file=../escape.txt:hack\n__agentbox_read_file=../escape.txt"
+    # In CPython WASI, '..' is handled by WASI if preopened.
+    # Our preopen at /sandbox prevents escapes.
+    code = "import os\ntry:\n    with open('../escape.txt', 'w') as f: f.write('hack')\nexcept Exception as e:\n    print(e)"
+    result = box.run(code)
+
+    # In WASI, this should fail at the system call level (likely FileNotFoundError, PermissionError, or Operation not permitted)
+    assert result.exit_code == 0  # Exception caught
+    assert any(
+        msg in result.stdout
+        for msg in [
+            "No such file or directory",
+            "not found",
+            "Permission denied",
+            "Operation not permitted",
+        ]
+    )
+
+
+def test_sandbox_rejects_absolute_path_write_outside_sandbox():
+    box = Sandbox()
+    code = (
+        "try:\n"
+        "    with open('/escape_abs.txt', 'w') as f:\n"
+        "        f.write('hack')\n"
+        "    print('WRITE_SUCCEEDED')\n"
+        "except Exception as e:\n"
+        "    print(type(e).__name__)"
+    )
     result = box.run(code)
 
     assert result.exit_code == 0
-    assert "Invalid directive path: ../escape.txt" in result.stderr
-    assert "File ../escape.txt" not in result.stdout
+    assert "WRITE_SUCCEEDED" not in result.stdout
+    assert any(
+        name in result.stdout for name in ["PermissionError", "OSError", "FileNotFoundError"]
+    )

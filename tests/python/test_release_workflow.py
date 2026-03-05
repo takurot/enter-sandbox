@@ -19,7 +19,9 @@ def test_release_workflow_has_expected_triggers():
 def test_release_workflow_builds_and_publishes_to_pypi():
     text = _workflow_text()
     assert "name: Build distributions" in text
+    assert "name: Prepare CPython WASI assets" in text
     assert "python scripts/build_pypi_artifacts.py --out-dir dist" in text
+    assert "runner-wasm" not in text
     assert "uses: actions/upload-artifact@v4" in text
     assert "name: Publish to PyPI" in text
     assert "id-token: write" in text

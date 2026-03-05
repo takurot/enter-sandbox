@@ -1,5 +1,6 @@
+use crate::runtime;
 use anyhow::{bail, Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::thread;
 use std::time::Duration;
 use wasmtime::{Config, Engine, Linker, Module, Store, WasmBacktrace};
@@ -250,7 +251,7 @@ pub fn run_with_options(
     code: &str,
     options: ReproRunOptions,
 ) -> Result<ReproRun> {
-    let runtime_dir = cpython_runtime_dir();
+    let runtime_dir = runtime::resolve_cpython_runtime_dir()?;
     let wasm_path = runtime_dir.join("python.wasm");
     ensure_runtime_available(&runtime_dir, &wasm_path)?;
     let output_limit_bytes = resolve_output_limit(options.max_output_bytes)?;
@@ -422,10 +423,6 @@ fn format_start_call_failure(error: &anyhow::Error) -> String {
     lines.join("\n")
 }
 
-fn cpython_runtime_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets/cpython-wasi/runtime")
-}
-
 fn configure_wasi_builder(
     builder: &mut WasiCtxBuilder,
     context_view: &WasiContextView,
@@ -450,8 +447,8 @@ fn configure_wasi_builder(
         .preopened_dir(
             runtime_dir,
             &context_view.preopen_guest_path,
-            DirPerms::all(),
-            FilePerms::all(),
+            DirPerms::READ,
+            FilePerms::READ,
         )
         .with_context(|| {
             format!(

@@ -85,16 +85,6 @@ pub struct SandboxResult {
     exit_code: i32,
 }
 
-impl SandboxResult {
-    fn success(stdout: String, stderr: String) -> Self {
-        Self {
-            stdout,
-            stderr,
-            exit_code: 0,
-        }
-    }
-}
-
 const DEFAULT_MEMORY_LIMIT_MB: usize = 512;
 const DEFAULT_TIMEOUT_MS: u64 = 10_000;
 const BYTES_PER_MB: usize = 1024 * 1024;
@@ -122,8 +112,14 @@ pub fn execute_sandbox_run(
     let memory_bytes = resolve_memory_limit_bytes(config.memory_limit_mb)?;
     let max_output_bytes = config.max_output_bytes;
 
-    let session = runtime::WasmSession::new(memory_bytes, max_output_bytes, code, vfs)
-        .context("Failed to initialize wasm session")?;
+    let session = runtime::WasmSession::new(
+        memory_bytes,
+        max_output_bytes,
+        code,
+        vfs,
+        runtime.runtime_dir(),
+    )
+    .context("Failed to initialize wasm session")?;
     let linker = runtime
         .create_linker()
         .context("Failed to initialize wasm linker")?;
@@ -133,27 +129,45 @@ pub fn execute_sandbox_run(
 
     let instance = linker
         .instantiate(&mut store, runtime.module())
-        .context("Failed to instantiate runner wasm module")?;
+        .context("Failed to instantiate CPython WASI module")?;
     let start = instance
         .get_typed_func::<(), ()>(&mut store, "_start")
-        .context("Failed to resolve _start export from runner wasm module")?;
+        .context("Failed to resolve _start export from CPython WASI module")?;
 
     let _guard = runtime.begin_execution();
-    if let Err(error) = start.call(&mut store, ()) {
-        if store.data().output_limit_exceeded() {
-            return Err(anyhow!(
-                "Execution output exceeded max_output_bytes={} bytes",
-                store.data().output_limit_bytes()
-            ));
-        }
+    let call_result = start.call(&mut store, ());
 
-        if let Some(timeout_ms) = config.timeout_ms {
-            if WasmRuntime::is_epoch_timeout_error(&error) {
-                return Err(anyhow!("Execution timed out after {timeout_ms} ms"));
+    let mut exit_code = 0;
+    if let Err(error) = call_result {
+        if let Some(exit) = error.downcast_ref::<wasmtime_wasi::I32Exit>() {
+            exit_code = exit.0;
+        } else {
+            if store.data().output_limit_exceeded() {
+                return Err(anyhow!(
+                    "Execution output exceeded max_output_bytes={} bytes (stdout={}, stderr={})",
+                    store.data().output_limit_bytes(),
+                    store.data().stdout_pipe.contents().len(),
+                    store.data().stderr_pipe.contents().len()
+                ));
             }
-        }
 
-        return Err(anyhow!(error.to_string()));
+            if let Some(timeout_ms) = config.timeout_ms {
+                if WasmRuntime::is_epoch_timeout_error(&error) {
+                    return Err(anyhow!("Execution timed out after {timeout_ms} ms"));
+                }
+            }
+
+            return Err(anyhow!(error.to_string()));
+        }
+    }
+
+    if store.data().output_limit_exceeded() {
+        return Err(anyhow!(
+            "Execution output exceeded max_output_bytes={} bytes (stdout={}, stderr={})",
+            store.data().output_limit_bytes(),
+            store.data().stdout_pipe.contents().len(),
+            store.data().stderr_pipe.contents().len()
+        ));
     }
 
     store
@@ -163,7 +177,11 @@ pub fn execute_sandbox_run(
 
     let stdout = String::from_utf8_lossy(store.data().stdout_pipe.contents().as_ref()).to_string();
     let stderr = String::from_utf8_lossy(store.data().stderr_pipe.contents().as_ref()).to_string();
-    Ok(SandboxResult::success(stdout, stderr))
+    Ok(SandboxResult {
+        stdout,
+        stderr,
+        exit_code,
+    })
 }
 
 fn resolve_memory_limit_bytes(memory_limit_mb: Option<usize>) -> Result<Option<usize>> {
@@ -175,8 +193,9 @@ fn resolve_memory_limit_bytes(memory_limit_mb: Option<usize>) -> Result<Option<u
         .transpose()
 }
 
-/// Execute one full `Sandbox.run()`-equivalent cycle with a fresh runtime.
-/// This is intended for cold-start benchmarks and non-Python Rust callers.
+/// Execute one full `Sandbox.run()`-equivalent cycle.
+/// This entrypoint is intended for benchmark and non-Python Rust callers.
+/// Note: `WasmRuntime` internally shares the Engine/Module cache process-wide.
 #[doc(hidden)]
 pub fn run_code_once_for_benchmark(code: &str) -> Result<()> {
     let runtime = WasmRuntime::new().context("Failed to create Wasmtime runtime")?;
@@ -239,6 +258,31 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_sandbox_run_cpython_with_exit_code() {
+        let runtime = WasmRuntime::new().unwrap();
+        let vfs = VirtualFS::new();
+        let config = default_runtime_config();
+
+        let code = "import sys; sys.exit(42)";
+        let result = execute_sandbox_run(&runtime, &vfs, &config, code).unwrap();
+        assert_eq!(result.exit_code, 42);
+    }
+
+    #[test]
+    fn test_sandbox_run_imports_from_vfs() {
+        let runtime = WasmRuntime::new().unwrap();
+        let vfs = VirtualFS::new();
+        vfs.write_file("helper.py", b"def get_value(): return 123")
+            .unwrap();
+        let config = default_runtime_config();
+
+        let code = "import helper; print(helper.get_value())";
+        let result = execute_sandbox_run(&runtime, &vfs, &config, code).unwrap();
+        assert_eq!(result.stdout.trim(), "123");
+        assert_eq!(result.exit_code, 0);
+    }
 
     #[test]
     fn resolve_memory_limit_bytes_converts_mb_to_bytes() {

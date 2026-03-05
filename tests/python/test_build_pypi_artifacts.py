@@ -24,7 +24,7 @@ def test_build_pypi_artifacts_dry_run_builds_wheel_and_sdist(tmp_path: Path):
     )
 
     assert run.returncode == 0, run.stdout + run.stderr
-    assert "cargo build --target wasm32-wasip1 --release" in run.stdout
+    assert "scripts/prepare_cpython_wasi_assets.py --check-only" in run.stdout
     assert "Using PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1" in run.stdout
     assert "Dry run enabled; no artifacts will be built." in run.stdout
     assert "maturin build --release" in run.stdout
@@ -47,7 +47,7 @@ def test_build_pypi_artifacts_dry_run_skip_sdist(tmp_path: Path):
     )
 
     assert run.returncode == 0, run.stdout + run.stderr
-    assert "cargo build --target wasm32-wasip1 --release" in run.stdout
+    assert "scripts/prepare_cpython_wasi_assets.py --check-only" in run.stdout
     assert "maturin build --release" in run.stdout
     assert "maturin sdist" not in run.stdout
 

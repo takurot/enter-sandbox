@@ -1,0 +1,12 @@
+### Review Summary
+
+Great work on this optimization! Moving the `Engine` and compiled `Module` into a shared static state via `OnceCell` is the right approach for eliminating Wasmtime's cold start overhead. The implementation is clean and the test coverage ensures caching behaves correctly.
+
+### Findings
+
+- 🟡 **[important]** **Background Thread CPU Usage:** The epoch ticker thread is now spawned once and runs a 1ms `sleep`/`increment_epoch` loop indefinitely for the lifetime of the process. While this ensures `arm_epoch_timeout` works correctly across all sandboxes, waking up 1000 times a second even when no sandboxes are actively executing causes unnecessary background CPU usage and prevents CPU sleep states. I suggest implementing an active-sandbox counter with a `Condvar` so the ticker can park when idle.
+- 🟢 **[nit]** **`once_cell` dependency:** You correctly used `once_cell::sync::OnceCell` because `std::sync::OnceLock::get_or_try_init` is not yet stable in Rust. This is the correct choice!
+- 🎉 **[praise]** Excellent job encapsulating the static initialization and adding unit tests (`test_wasm_runtime_reuses_engine_across_instances`) to enforce the singleton behavior.
+
+### Decision
+🔄 Request Changes (Please address the ticker background thread CPU usage issue)

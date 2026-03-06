@@ -173,6 +173,7 @@ pytest -q tests/python/test_cpython_wasi_repro.py
 - [機能仕様書 (SPEC.md)](docs/SPEC.md)
 - [実装計画 (PLAN.md)](docs/PLAN.md)
 - [Firecracker 開発環境 (FIRECRACKER_DEV.md)](docs/FIRECRACKER_DEV.md)
+- [Firecracker Rootfs ビルド (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
 - [バージョニング戦略 (VERSIONING.md)](docs/VERSIONING.md)
 - [変更履歴 (CHANGELOG.md)](CHANGELOG.md)
 - [リサーチレポート (RESEARCH.md)](docs/RESEARCH.md)

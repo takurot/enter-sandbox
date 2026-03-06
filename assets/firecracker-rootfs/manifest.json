@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "asset": {
+    "name": "alpine-minirootfs",
+    "version": "3.23.0-x86_64",
+    "base_distribution": "alpine",
+    "architecture": "x86_64",
+    "source": {
+      "type": "https",
+      "url": "https://dl-cdn.alpinelinux.org/alpine/latest-stable/releases/x86_64/alpine-minirootfs-3.23.0-x86_64.tar.gz"
+    },
+    "archive": {
+      "file_name": "alpine-minirootfs-3.23.0-x86_64.tar.gz",
+      "sha256": "ce8f782f1628d046fb6360eff880b898e5205ed91106d9d14ff4fcb97431bbde",
+      "size_bytes": 3711522
+    },
+    "extract": {
+      "directory": "rootfs",
+      "expected_files": [
+        {
+          "path": "bin/busybox",
+          "sha256": "0a60db2f3ee299818fd20a6d1b67ab42f88f1c75bb1d8178b62da386498c87e9"
+        },
+        {
+          "path": "etc/alpine-release",
+          "sha256": "efd9c4ad2a32228ae2480625dc063e102827dedd15e275943e72e6e5589613fb"
+        }
+      ]
+    },
+    "image": {
+      "path": "rootfs.ext4",
+      "size_mb": 512,
+      "label": "enter-sandbox"
+    }
+  }
+}

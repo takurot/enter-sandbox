@@ -93,6 +93,7 @@ devcontainer up --workspace-folder .
 
 - `Vagrantfile`: contributor VM bootstrap for cross-platform local development
 - `.devcontainer/devcontainer.json`: consistent Rust/Python developer container
+- `docs/FIRECRACKER_ROOTFS.md`: Alpine rootfs image preparation workflow (`P2-002`)
 
 These artifacts support coding, linting, tests, and build preparation. Full Firecracker VM boot
 tests still require Linux KVM infrastructure.

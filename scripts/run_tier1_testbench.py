@@ -46,9 +46,9 @@ class ScenarioDefinition:
 def _import_agentbox() -> Any:
     try:
         from agentbox import Sandbox, SandboxConfig
-    except Exception as error:  # pragma: no cover - environment dependent
+    except ImportError as error:  # pragma: no cover - environment dependent
         raise RuntimeError(
-            "Failed to import agentbox. Build/install the package first "
+            f"Failed to import agentbox ({error}). Build/install the package first "
             "(e.g. `maturin develop` or `pip install .`)."
         ) from error
     return Sandbox, SandboxConfig

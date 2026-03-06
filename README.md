@@ -160,6 +160,23 @@ cd agentbox-core && cargo test cpython_wasi_repro -- --nocapture
 pytest -q tests/python/test_cpython_wasi_repro.py
 ```
 
+## 🧪 Tier1 Test Bench
+
+Run user-journey scenarios for Tier1 (`Sandbox`) with machine-readable reports.
+
+```bash
+# PR-oriented quick checks
+python3 scripts/run_tier1_testbench.py --mode quick --json-output artifacts/tb-quick.json
+
+# Nightly full scenario run (with repetitions)
+python3 scripts/run_tier1_testbench.py --mode full --json-output artifacts/tb-full.json
+
+# Perf mode: quick scenario + benchmark regression guard
+python3 scripts/run_tier1_testbench.py --mode perf --json-output artifacts/tb-perf.json
+```
+
+For planning details and task breakdown, see `docs/TB_PLAN.md`.
+
 ## 🗺 Roadmap
 
 See [docs/PLAN.md](docs/PLAN.md) for details.
@@ -177,6 +194,7 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - [Firecracker Rootfs Build (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
 - [Versioning Strategy (VERSIONING.md)](docs/VERSIONING.md)
 - [Changelog](CHANGELOG.md)
+- [Tier1 Test Bench Plan (TB_PLAN.md)](docs/TB_PLAN.md)
 - [Research Report (RESEARCH.md)](docs/RESEARCH.md) (Japanese)
 - [CPython WASI repro assets](assets/cpython-wasi/README.md)
 

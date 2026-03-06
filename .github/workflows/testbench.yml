@@ -1,0 +1,70 @@
+name: Tier1 Test Bench
+
+on:
+  pull_request:
+    branches: [ main ]
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Test bench mode to execute"
+        required: true
+        default: full
+        type: choice
+        options:
+          - quick
+          - full
+          - perf
+
+jobs:
+  tier1-testbench:
+    name: Tier1 Test Bench
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-wasip1
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+      - name: Cache CPython WASI assets
+        uses: actions/cache@v4
+        with:
+          path: assets/cpython-wasi/downloads
+          key: cpython-wasi-${{ runner.os }}-${{ hashFiles('assets/cpython-wasi/manifest.json') }}
+      - name: Prepare CPython WASI assets
+        run: python scripts/prepare_cpython_wasi_assets.py
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff pytest maturin
+      - name: Build & Install
+        run: pip install .
+      - name: Run quick mode (PR)
+        if: github.event_name == 'pull_request'
+        run: python scripts/run_tier1_testbench.py --mode quick --json-output artifacts/tb-quick.json
+      - name: Run full mode (nightly)
+        if: github.event_name == 'schedule'
+        run: python scripts/run_tier1_testbench.py --mode full --json-output artifacts/tb-full.json
+      - name: Run perf mode (nightly)
+        if: github.event_name == 'schedule'
+        run: python scripts/run_tier1_testbench.py --mode perf --json-output artifacts/tb-perf.json
+      - name: Run selected mode (manual)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          python scripts/run_tier1_testbench.py \
+            --mode "${{ inputs.mode }}" \
+            --json-output "artifacts/tb-${{ inputs.mode }}.json"
+      - name: Upload test bench artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier1-testbench-${{ github.run_id }}
+          path: artifacts/*.json
+          if-no-files-found: ignore

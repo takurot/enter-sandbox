@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -82,6 +83,15 @@ def _write_manifest(
     return manifest_path
 
 
+def _make_fake_mkfs(bin_dir: Path, log_path: Path) -> None:
+    script_path = bin_dir / "mkfs.ext4"
+    script_path.write_text(
+        '#!/bin/sh\nprintf \'%s\\n\' "$*" >> "$FAKE_MKFS_LOG"\n',
+        encoding="utf-8",
+    )
+    script_path.chmod(0o755)
+
+
 def test_firecracker_rootfs_doc_has_alpine_workflow_and_exit_criteria():
     text = DOC_PATH.read_text(encoding="utf-8")
 
@@ -157,6 +167,75 @@ def test_prepare_firecracker_rootfs_download_extract_and_check(tmp_path: Path):
 
     check_run = subprocess.run(command + ["--check-only"], capture_output=True, text=True)
     assert check_run.returncode == 0, check_run.stderr
+
+
+def test_prepare_firecracker_rootfs_check_only_requires_existing_metadata(tmp_path: Path):
+    source_archive, payload_dir = _create_rootfs_archive(tmp_path)
+    manifest_path = _write_manifest(tmp_path, source_archive, payload_dir)
+    cache_dir = tmp_path / "downloads"
+    extract_dir = tmp_path / "rootfs"
+    output_dir = tmp_path / "out"
+    metadata_path = output_dir / "rootfs-image.json"
+
+    command = [
+        sys.executable,
+        str(SCRIPT_PATH),
+        "--manifest",
+        str(manifest_path),
+        "--cache-dir",
+        str(cache_dir),
+        "--extract-dir",
+        str(extract_dir),
+        "--output-dir",
+        str(output_dir),
+        "--no-build-image",
+    ]
+
+    first_run = subprocess.run(command, capture_output=True, text=True)
+    assert first_run.returncode == 0, first_run.stderr
+    metadata_path.unlink()
+
+    check_run = subprocess.run(command + ["--check-only"], capture_output=True, text=True)
+    assert check_run.returncode != 0
+    assert "Rootfs image metadata not found" in check_run.stderr
+    assert not metadata_path.exists()
+
+
+def test_prepare_firecracker_rootfs_reuses_existing_image_without_force(tmp_path: Path):
+    source_archive, payload_dir = _create_rootfs_archive(tmp_path)
+    manifest_path = _write_manifest(tmp_path, source_archive, payload_dir)
+    cache_dir = tmp_path / "downloads"
+    extract_dir = tmp_path / "rootfs"
+    output_dir = tmp_path / "out"
+    log_path = tmp_path / "mkfs.log"
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    _make_fake_mkfs(bin_dir, log_path)
+
+    env = os.environ.copy()
+    env["FAKE_MKFS_LOG"] = str(log_path)
+    env["PATH"] = "{}{}{}".format(bin_dir, os.pathsep, env["PATH"])
+
+    command = [
+        sys.executable,
+        str(SCRIPT_PATH),
+        "--manifest",
+        str(manifest_path),
+        "--cache-dir",
+        str(cache_dir),
+        "--extract-dir",
+        str(extract_dir),
+        "--output-dir",
+        str(output_dir),
+    ]
+
+    first_run = subprocess.run(command, capture_output=True, text=True, env=env)
+    assert first_run.returncode == 0, first_run.stderr
+    assert log_path.read_text(encoding="utf-8").count("\n") == 1
+
+    second_run = subprocess.run(command, capture_output=True, text=True, env=env)
+    assert second_run.returncode == 0, second_run.stderr
+    assert log_path.read_text(encoding="utf-8").count("\n") == 1
 
 
 def test_prepare_firecracker_rootfs_check_only_requires_existing_archive(tmp_path: Path):

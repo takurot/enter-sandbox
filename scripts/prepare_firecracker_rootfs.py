@@ -330,6 +330,83 @@ def write_image_metadata(
     metadata_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
+def load_image_metadata(metadata_path: Path) -> Dict[str, object]:
+    try:
+        payload = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise RuntimeError(
+            "Failed to read rootfs image metadata {}: {}".format(metadata_path, error)
+        ) from error
+    except json.JSONDecodeError as error:
+        raise RuntimeError(
+            "Failed to parse rootfs image metadata {}: {}".format(metadata_path, error)
+        ) from error
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("Rootfs image metadata must be a JSON object: {}".format(metadata_path))
+    return payload
+
+
+def validate_image_metadata(
+    metadata_path: Path,
+    metadata: Dict[str, object],
+    manifest_path: Path,
+    archive_path: Path,
+    extract_dir: Path,
+    image_path: Path,
+    image_size_mb: int,
+    image_label: str,
+) -> str:
+    try:
+        schema_version = metadata["schema_version"]
+        image = metadata["image"]
+        inputs = metadata["inputs"]
+        metadata_image_path = image["path"]
+        metadata_size_mb = image["size_mb"]
+        metadata_label = image["label"]
+        metadata_built = image["built"]
+        metadata_builder = image["builder"]
+        metadata_manifest = inputs["manifest"]
+        metadata_archive = inputs["archive"]
+        metadata_extract_dir = inputs["extract_dir"]
+    except (KeyError, TypeError) as error:
+        raise RuntimeError(
+            "Rootfs image metadata is missing required keys: {}".format(metadata_path)
+        ) from error
+
+    if schema_version != 1:
+        raise RuntimeError(
+            "Rootfs image metadata schema_version must be 1: {}".format(metadata_path)
+        )
+
+    expected_fields = (
+        ("image.path", metadata_image_path, str(image_path)),
+        ("image.size_mb", metadata_size_mb, image_size_mb),
+        ("image.label", metadata_label, image_label),
+        ("inputs.manifest", metadata_manifest, str(manifest_path)),
+        ("inputs.archive", metadata_archive, str(archive_path)),
+        ("inputs.extract_dir", metadata_extract_dir, str(extract_dir)),
+    )
+    for field_name, actual, expected in expected_fields:
+        if actual != expected:
+            raise RuntimeError(
+                "Rootfs image metadata mismatch for {}: expected={}, actual={}".format(
+                    field_name, expected, actual
+                )
+            )
+
+    if not isinstance(metadata_built, bool):
+        raise RuntimeError(
+            "Rootfs image metadata has invalid image.built value: {}".format(metadata_path)
+        )
+    if not isinstance(metadata_builder, str) or not metadata_builder:
+        raise RuntimeError(
+            "Rootfs image metadata has invalid image.builder value: {}".format(metadata_path)
+        )
+
+    return metadata_builder
+
+
 def prepare_rootfs(args: argparse.Namespace) -> None:
     manifest_path = args.manifest.resolve()
     manifest_dir = manifest_path.parent
@@ -373,6 +450,7 @@ def prepare_rootfs(args: argparse.Namespace) -> None:
         attempts=args.download_attempts,
     )
 
+    extracted_rootfs_changed = False
     should_extract = args.force or not extract_dir.exists()
     if should_extract:
         if args.check_only:
@@ -381,6 +459,7 @@ def prepare_rootfs(args: argparse.Namespace) -> None:
             )
         print("[prepare-firecracker-rootfs] extracting to {}".format(extract_dir))
         extract_archive(archive_path, extract_dir)
+        extracted_rootfs_changed = True
 
     try:
         verify_expected_files(extract_dir, expected_files)
@@ -390,37 +469,81 @@ def prepare_rootfs(args: argparse.Namespace) -> None:
         print("[prepare-firecracker-rootfs] extracted files mismatch, re-extracting...")
         extract_archive(archive_path, extract_dir)
         verify_expected_files(extract_dir, expected_files)
+        extracted_rootfs_changed = True
+
+    metadata_builder: Optional[str] = None
+    metadata_valid = False
+    if image_metadata_path.exists():
+        try:
+            metadata_builder = validate_image_metadata(
+                metadata_path=image_metadata_path,
+                metadata=load_image_metadata(image_metadata_path),
+                manifest_path=manifest_path,
+                archive_path=archive_path,
+                extract_dir=extract_dir,
+                image_path=image_path,
+                image_size_mb=image_size_mb,
+                image_label=image_label,
+            )
+            metadata_valid = True
+        except RuntimeError as error:
+            if args.check_only:
+                raise
+            print(
+                "[prepare-firecracker-rootfs] existing metadata mismatch: {} (refreshing)".format(
+                    error
+                )
+            )
+    elif args.check_only:
+        raise RuntimeError(
+            "Rootfs image metadata not found in --check-only mode: {}".format(image_metadata_path)
+        )
 
     image_builder = "skipped"
     image_built = False
+    if metadata_valid and image_path.exists():
+        image_builder = metadata_builder or "existing"
+        image_built = True
 
     if args.no_build_image:
-        if args.check_only:
-            image_builder = "skipped-check-only"
+        pass
     else:
         if args.check_only:
             if not image_path.exists():
                 raise RuntimeError(
                     "Rootfs image not found in --check-only mode: {}".format(image_path)
                 )
-            image_builder = "existing"
+            image_builder = metadata_builder or "existing"
             image_built = True
         else:
-            print("[prepare-firecracker-rootfs] building image {}".format(image_path))
-            image_builder = build_rootfs_image(extract_dir, image_path, image_size_mb, image_label)
-            image_built = True
+            should_build_image = (
+                args.force
+                or extracted_rootfs_changed
+                or not image_path.exists()
+                or not metadata_valid
+            )
+            if should_build_image:
+                print("[prepare-firecracker-rootfs] building image {}".format(image_path))
+                image_builder = build_rootfs_image(
+                    extract_dir, image_path, image_size_mb, image_label
+                )
+                image_built = True
+            else:
+                image_builder = metadata_builder or "existing"
+                image_built = True
 
-    write_image_metadata(
-        metadata_path=image_metadata_path,
-        manifest_path=manifest_path,
-        archive_path=archive_path,
-        extract_dir=extract_dir,
-        image_path=image_path,
-        image_size_mb=image_size_mb,
-        image_label=image_label,
-        image_built=image_built,
-        image_builder=image_builder,
-    )
+    if not args.check_only:
+        write_image_metadata(
+            metadata_path=image_metadata_path,
+            manifest_path=manifest_path,
+            archive_path=archive_path,
+            extract_dir=extract_dir,
+            image_path=image_path,
+            image_size_mb=image_size_mb,
+            image_label=image_label,
+            image_built=image_built,
+            image_builder=image_builder,
+        )
 
     print("[prepare-firecracker-rootfs] manifest={}".format(manifest_path))
     print("[prepare-firecracker-rootfs] archive={}".format(archive_path))

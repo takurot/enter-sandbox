@@ -159,6 +159,23 @@ cd agentbox-core && cargo test cpython_wasi_repro -- --nocapture
 pytest -q tests/python/test_cpython_wasi_repro.py
 ```
 
+## 🧪 Tier1 テストベンチ
+
+Tier1 (`Sandbox`) の実利用シナリオを、JSON レポート付きで実行できます。
+
+```bash
+# PR 向けの高速チェック
+python3 scripts/run_tier1_testbench.py --mode quick --json-output artifacts/tb-quick.json
+
+# nightly 向けの通しシナリオ実行（反復あり）
+python3 scripts/run_tier1_testbench.py --mode full --json-output artifacts/tb-full.json
+
+# perf モード: quick シナリオ + ベンチ回帰ガード
+python3 scripts/run_tier1_testbench.py --mode perf --json-output artifacts/tb-perf.json
+```
+
+設計方針とタスク分解は `docs/TB_PLAN.md` を参照してください。
+
 ## 🗺 Roadmap
 
 詳細は [docs/PLAN.md](docs/PLAN.md) を参照してください。
@@ -176,6 +193,7 @@ pytest -q tests/python/test_cpython_wasi_repro.py
 - [Firecracker Rootfs ビルド (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
 - [バージョニング戦略 (VERSIONING.md)](docs/VERSIONING.md)
 - [変更履歴 (CHANGELOG.md)](CHANGELOG.md)
+- [Tier1 テストベンチ計画 (TB_PLAN.md)](docs/TB_PLAN.md)
 - [リサーチレポート (RESEARCH.md)](docs/RESEARCH.md)
 - [CPython WASI 再現アセット](assets/cpython-wasi/README.md)
 

@@ -256,7 +256,7 @@ def scenario_tb06_lightweight_workflow() -> None:
         "import datetime\n"
         "import json\n"
         "import re\n"
-        "payload = json.loads('{\"text\":\"id=42\",\"day\":\"2026-03-06\"}')\n"
+        'payload = json.loads(\'{"text":"id=42","day":"2026-03-06"}\')\n'
         "match = re.search(r'(\\d+)', payload['text'])\n"
         "day = datetime.date.fromisoformat(payload['day'])\n"
         "result = {'id': int(match.group(1)), 'date': day.isoformat(), 'weekday': day.weekday()}\n"
@@ -285,7 +285,9 @@ SCENARIOS: Dict[str, ScenarioDefinition] = {
     "TB-03": ScenarioDefinition("TB-03", "Import Guardrail", scenario_tb03_import_guardrail),
     "TB-04": ScenarioDefinition("TB-04", "Resource Limits", scenario_tb04_resource_limits),
     "TB-05": ScenarioDefinition("TB-05", "Error Semantics", scenario_tb05_error_semantics),
-    "TB-06": ScenarioDefinition("TB-06", "Lightweight Workflow", scenario_tb06_lightweight_workflow),
+    "TB-06": ScenarioDefinition(
+        "TB-06", "Lightweight Workflow", scenario_tb06_lightweight_workflow
+    ),
 }
 
 

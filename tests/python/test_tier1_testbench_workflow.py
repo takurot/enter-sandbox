@@ -13,7 +13,7 @@ def test_testbench_workflow_has_expected_triggers():
     text = _workflow_text()
     assert "pull_request:" in text
     assert "schedule:" in text
-    assert "cron: \"0 18 * * *\"" in text
+    assert 'cron: "0 18 * * *"' in text
     assert "workflow_dispatch:" in text
     assert "inputs:" in text
     assert "mode:" in text

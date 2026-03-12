@@ -146,6 +146,7 @@
 - (2026-02-28) P1-078/P1-022 完了。Dummy Runner を CPython WASI に置換し、終了コードの捕捉、VFS インポート、標準ライブラリの動作を Rust/Python 双方のテストで検証。Cold start 中央値は約 23.8ms となった。
 - (2026-03-05) P2-001 完了。`docs/FIRECRACKER_DEV.md` に Firecracker vs libkrun の比較と Phase2 の基準選定を記録。macOS/Windows 向けに `Vagrantfile` と `.devcontainer/devcontainer.json` を追加し、ローカル開発 + Linux KVM 検証の運用フローを定義。
 - (2026-03-05) P2-002 完了。`assets/firecracker-rootfs/manifest.json` で Alpine minirootfs アセットを固定化し、`scripts/prepare_firecracker_rootfs.py` でダウンロード検証・安全な展開・`rootfs.ext4` 生成（Linux の `mkfs.ext4` / `mke2fs`）を実装。`docs/FIRECRACKER_ROOTFS.md` と Python 契約テストを追加。
+- (2026-03-12) P2-003 完了。`docs/FIRECRACKER_POOL.md` に単一 KVM ホスト前提の Firecracker VM プール設計を追加し、`minimum warm instances=2` / `maximum warm instances=8` / 利用率 `70%` の `scale-out` / `Warm > 4 が 5 minutes 継続` の `scale-in` を固定。`Creating`→`Warm`→`Leased`→`Draining` の状態遷移、health check、`acquire`/`release`/`reap` の handoff contract を定義して `P2-004`/`P2-005` へ接続。
 
 ### 1.9 リリース準備
 
@@ -170,7 +171,7 @@
 | --- | --- | --- | --- | --- |
 | P2-001 | Firecracker 評価 & 開発環境 | Firecracker vs libkrun 比較。**macOS/Windows での Firecracker 開発環境（Dev Container, Vagrant等）の確立** | `[x]` | Phase 1 完了 |
 | P2-002 | VM イメージ作成 | Python + 基本ライブラリを含む rootfs イメージ作成（Alpine Linux ベース） | `[x]` | P2-001 |
-| P2-003 | VM プール管理設計 | プール戦略設計（ウォームインスタンス数、スケール閾値） | `[ ]` | P2-001 |
+| P2-003 | VM プール管理設計 | プール戦略設計（ウォームインスタンス数、スケール閾値） | `[x]` | P2-001 |
 | P2-004 | VM プール実装 | ウォーム VM プールの生成・取得・返却ロジック実装 | `[ ]` | P2-003 |
 | P2-005 | スナップショット起動 | 起動済み VM のメモリスナップショットからの高速復元実装 | `[ ]` | P2-002, P2-004 |
 

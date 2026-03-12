@@ -191,6 +191,7 @@ python3 scripts/run_tier1_testbench.py --mode perf --json-output artifacts/tb-pe
 - [実装計画 (PLAN.md)](docs/PLAN.md)
 - [Firecracker 開発環境 (FIRECRACKER_DEV.md)](docs/FIRECRACKER_DEV.md)
 - [Firecracker Rootfs ビルド (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
+- [Firecracker VMプール設計 (FIRECRACKER_POOL.md)](docs/FIRECRACKER_POOL.md)
 - [バージョニング戦略 (VERSIONING.md)](docs/VERSIONING.md)
 - [変更履歴 (CHANGELOG.md)](CHANGELOG.md)
 - [Tier1 テストベンチ計画 (TB_PLAN.md)](docs/TB_PLAN.md)

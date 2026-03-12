@@ -24,14 +24,15 @@ def test_firecracker_pool_doc_covers_pool_states_and_scaling_policy():
 def test_firecracker_pool_doc_sets_concrete_thresholds_for_p2_004():
     text = DOC_PATH.read_text(encoding="utf-8")
 
-    assert "minimum warm instances" in text
-    assert "maximum warm instances" in text
+    assert "- minimum warm instances: `2`" in text
+    assert "- maximum warm instances: `8`" in text
+    assert "- preferred ready target after refill: `2`" in text
+    assert "- per-host concurrency cap: `8` active VMs" in text
     assert "scale-out" in text
     assert "scale-in" in text
-    assert "2" in text
-    assert "8" in text
-    assert "70%" in text
-    assert "5 minutes" in text
+    assert "If available `Warm` instances drop below the minimum warm floor (`2`)" in text
+    assert "If pool utilization reaches `70%` or higher" in text
+    assert "If available `Warm` instances stay above `4` for `5 minutes`" in text
 
 
 def test_firecracker_pool_doc_defines_p2_004_handoff_contract():

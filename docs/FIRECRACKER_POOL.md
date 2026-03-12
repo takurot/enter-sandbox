@@ -56,8 +56,9 @@ The first implementation should use conservative single-host defaults:
 
 `scale-out` rules:
 
-1. If available `Warm` instances drops below `1`, create enough VMs to return to the preferred
-   ready target, without exceeding the maximum warm instances / per-host cap.
+1. If available `Warm` instances drop below the minimum warm floor (`2`), create enough VMs to
+   return to the preferred ready target, without exceeding the maximum warm instances /
+   per-host cap.
 2. If pool utilization reaches `70%` or higher (`Leased` divided by active VMs), start
    background creation even if one warm VM is still available.
 3. If a lease request arrives while no warm VM exists and the pool is below cap, place a VM
@@ -65,7 +66,7 @@ The first implementation should use conservative single-host defaults:
 
 `scale-in` rules:
 
-1. If available `Warm` instances stays above `4` for `5 minutes`, reap the oldest surplus
+1. If available `Warm` instances stay above `4` for `5 minutes`, reap the oldest surplus
    warm VMs until the pool returns to the preferred ready target.
 2. `Creating` VMs are never canceled for scale-in; only idle `Warm` VMs are removed.
 3. Any VM with repeated guest health check failure should be discarded instead of recycled.

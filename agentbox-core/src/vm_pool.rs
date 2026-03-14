@@ -282,6 +282,7 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
             Ok(plan) => plan,
             Err(_) => {
                 self.discard_vm(&lease.vm_id, true)?;
+                self.start_background_creations(now)?;
                 self.update_warm_surplus_marker(now);
                 return Ok(ReleaseDisposition::Discarded);
             }
@@ -311,6 +312,7 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
         let before = self.metrics.clone();
         self.advance_to(now)?;
         self.scale_in_if_needed(now)?;
+        self.start_background_creations(now)?;
         self.advance_to(now)?;
 
         Ok(ReapSummary {
@@ -981,7 +983,43 @@ mod tests {
 
         assert_eq!(disposition, ReleaseDisposition::Discarded);
         let snapshot = pool.snapshot();
+        assert_eq!(snapshot.counters.warm, 2);
         assert_eq!(snapshot.metrics.discarded, 1);
         assert_eq!(snapshot.metrics.failed, 1);
+        assert_eq!(snapshot.metrics.created, 3);
+    }
+
+    #[test]
+    fn reap_backfills_minimum_warm_instances_after_discarding_stale_creating_vm() {
+        let start = Instant::now();
+        let config = VmPoolConfig {
+            create_timeout: Duration::from_millis(100),
+            ..VmPoolConfig::default()
+        };
+        let provider = FakeVmProvider::with_create_latencies(&[Duration::from_secs(1)]);
+        let mut pool = FirecrackerVmPool::new(provider, config);
+
+        let outcome = pool
+            .acquire(
+                AcquireRequest {
+                    timeout: Duration::ZERO,
+                },
+                start,
+            )
+            .expect("acquire should return timeout");
+        assert_eq!(outcome, AcquireOutcome::TimedOut);
+
+        let summary = pool
+            .reap(start + Duration::from_millis(150))
+            .expect("reap should succeed");
+        let snapshot = pool.snapshot();
+
+        assert_eq!(summary.discarded, 1);
+        assert_eq!(summary.failed, 1);
+        assert_eq!(snapshot.counters.creating, 0);
+        assert_eq!(snapshot.counters.warm, 2);
+        assert_eq!(snapshot.metrics.discarded, 1);
+        assert_eq!(snapshot.metrics.failed, 1);
+        assert_eq!(snapshot.metrics.created, 3);
     }
 }

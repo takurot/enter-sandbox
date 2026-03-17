@@ -112,19 +112,19 @@ Required semantics:
   - Removes excess idle warm VMs according to the scale-in policy.
   - Emits counters for `created`, `recycled`, `discarded`, and `failed`.
 
-Supporting data that `P2-004` should expose:
+Supporting data that `P2-004`/`P2-005` should expose:
 
 - pool counters: `creating`, `warm`, `leased`, `draining`, `failed`
 - queue/latency metrics: `acquire_wait_ms`, `warm_hit`, `cold_miss`
-- per-VM metadata: `vm_id`, `started_at`, `reuse_count`, `boot_source`, `last_health_check_at`
+- per-VM metadata: `vm_id`, `started_at`, `reuse_count`, `boot_source`, optional `snapshot_id`, `last_health_check_at`
 
 ## Snapshot Handoff for P2-005
 
 `P2-005` should plug into the existing design instead of inventing a new pool model:
 
 1. `Creating` remains the public state, but creation may be fulfilled by snapshot restore.
-2. `boot_source` in the lease/metadata tells benchmarks whether the VM came from `rootfs.ext4`
-   boot or snapshot resume.
+2. `boot_source` plus optional `snapshot_id` in the lease/metadata tell benchmarks whether the
+   VM came from `rootfs.ext4` boot or snapshot resume.
 3. Scale thresholds remain the same; only the time spent in `Creating` should change.
 
 ## Exit Criteria

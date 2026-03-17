@@ -38,6 +38,7 @@ pub struct CreatedVm {
     pub boot_source: BootSource,
     pub guest_connection: GuestConnection,
     pub lineage_id: String,
+    pub snapshot_id: Option<String>,
     pub ready_after: Duration,
 }
 
@@ -65,6 +66,7 @@ pub struct VmLease {
     pub boot_source: BootSource,
     pub guest_connection: GuestConnection,
     pub lineage_id: String,
+    pub snapshot_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -90,6 +92,7 @@ pub struct VmMetadata {
     pub boot_source: BootSource,
     pub last_health_check_at: Option<Instant>,
     pub lineage_id: String,
+    pub snapshot_id: Option<String>,
     pub guest_connection: GuestConnection,
 }
 
@@ -376,6 +379,7 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
             boot_source: created_vm.boot_source,
             last_health_check_at: None,
             lineage_id: created_vm.lineage_id,
+            snapshot_id: created_vm.snapshot_id,
             guest_connection: created_vm.guest_connection,
         };
         self.metrics.created = self.metrics.created.saturating_add(1);
@@ -527,6 +531,7 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
                 boot_source: metadata.boot_source,
                 guest_connection: metadata.guest_connection.clone(),
                 lineage_id: metadata.lineage_id.clone(),
+                snapshot_id: metadata.snapshot_id.clone(),
             }
         };
 
@@ -661,6 +666,7 @@ mod tests {
                     vsock_port: Some(10_000 + self.next_vm_id as u32),
                 },
                 lineage_id: "rootfs.ext4".to_string(),
+                snapshot_id: None,
                 ready_after: self
                     .create_ready_after
                     .pop_front()

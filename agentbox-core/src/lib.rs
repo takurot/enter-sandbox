@@ -5,11 +5,18 @@ mod cpython_wasi_repro;
 mod import_policy;
 mod runtime;
 mod vfs;
+mod vm_pool;
 
 #[doc(hidden)]
 pub use runtime::WasmRuntime;
 #[doc(hidden)]
 pub use vfs::VirtualFS;
+#[doc(hidden)]
+pub use vm_pool::{
+    AcquireOutcome, AcquireRequest, BootSource, CreatedVm, DrainPlan, FirecrackerVmPool,
+    GuestConnection, PoolCounters, PoolMetrics, PoolSnapshot, ReapSummary, RefillSummary,
+    ReleaseDisposition, ReleaseOutcome, VmLease, VmMetadata, VmPoolConfig, VmProvider, VmState,
+};
 
 #[pyfunction]
 #[pyo3(signature = (profile, code=None, timeout_ms=None, max_output_bytes=None))]

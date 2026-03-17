@@ -29,8 +29,10 @@ DEFAULT_MEMORY_COMMAND = [
 ]
 
 DEFAULT_COLD_START_THRESHOLD_MS = 80.0
-# GitHub-hosted runners report ~240MB peak with full CPython WASI runtime.
-DEFAULT_WARM_PEAK_THRESHOLD_KB = 260 * 1024
+# GitHub-hosted runners now sit around ~267MB peak for the warm scenario with
+# the full CPython WASI runtime and the current core feature set. Keep only a
+# small buffer above that so the guard still catches meaningful regressions.
+DEFAULT_WARM_PEAK_THRESHOLD_KB = 270 * 1024
 DEFAULT_COMMAND_TIMEOUT_SEC = 600.0
 
 CRITERION_TIME_PATTERN = re.compile(

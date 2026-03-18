@@ -4,11 +4,14 @@ use pyo3::prelude::*;
 mod cpython_wasi_repro;
 mod import_policy;
 mod runtime;
+mod snapshot;
 mod vfs;
 mod vm_pool;
 
 #[doc(hidden)]
 pub use runtime::WasmRuntime;
+#[doc(hidden)]
+pub use snapshot::{SnapshotArtifact, SnapshotAwareProvider, SnapshotControlPlane};
 #[doc(hidden)]
 pub use vfs::VirtualFS;
 #[doc(hidden)]

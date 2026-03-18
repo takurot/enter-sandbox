@@ -102,7 +102,6 @@ pub struct PoolCounters {
     pub warm: usize,
     pub leased: usize,
     pub draining: usize,
-    pub failed: u64,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -204,7 +203,6 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
     pub fn refill(&mut self, now: Instant) -> Result<RefillSummary> {
         self.advance_to(now)?;
         let started = self.start_background_creations(now)?;
-        self.advance_to(now)?;
         Ok(RefillSummary { started })
     }
 
@@ -545,11 +543,13 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
             .vms
             .remove(vm_id)
             .ok_or_else(|| anyhow!("unknown vm_id={vm_id}"))?;
-        self.provider.destroy_vm(&metadata)?;
+        // Update counters before destroy_vm so metrics remain consistent even
+        // if the infrastructure cleanup call returns an error.
         self.metrics.discarded = self.metrics.discarded.saturating_add(1);
         if failed {
             self.metrics.failed = self.metrics.failed.saturating_add(1);
         }
+        self.provider.destroy_vm(&metadata)?;
         Ok(())
     }
 
@@ -584,7 +584,6 @@ impl<P: VmProvider> FirecrackerVmPool<P> {
                 VmState::Draining => counters.draining += 1,
             }
         }
-        counters.failed = self.metrics.failed;
         counters
     }
 

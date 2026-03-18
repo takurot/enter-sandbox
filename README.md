@@ -193,6 +193,7 @@ See [docs/PLAN.md](docs/PLAN.md) for details.
 - [Firecracker Dev Environment (FIRECRACKER_DEV.md)](docs/FIRECRACKER_DEV.md)
 - [Firecracker Rootfs Build (FIRECRACKER_ROOTFS.md)](docs/FIRECRACKER_ROOTFS.md)
 - [Firecracker Pool Strategy (FIRECRACKER_POOL.md)](docs/FIRECRACKER_POOL.md)
+- [Firecracker Snapshot Startup (FIRECRACKER_SNAPSHOT.md)](docs/FIRECRACKER_SNAPSHOT.md)
 - [Versioning Strategy (VERSIONING.md)](docs/VERSIONING.md)
 - [Changelog](CHANGELOG.md)
 - [Tier1 Test Bench Plan (TB_PLAN.md)](docs/TB_PLAN.md)

@@ -1,7 +1,7 @@
 # EnterSandBox 実装計画
 
 > **ドキュメントバージョン:** 1.0  
-> **最終更新:** 2026-03-05  
+> **最終更新:** 2026-03-17  
 > **参照:** [SPEC.md](./SPEC.md), [RESEARCH.md](./RESEARCH.md)
 
 ---
@@ -148,6 +148,7 @@
 - (2026-03-05) P2-002 完了。`assets/firecracker-rootfs/manifest.json` で Alpine minirootfs アセットを固定化し、`scripts/prepare_firecracker_rootfs.py` でダウンロード検証・安全な展開・`rootfs.ext4` 生成（Linux の `mkfs.ext4` / `mke2fs`）を実装。`docs/FIRECRACKER_ROOTFS.md` と Python 契約テストを追加。
 - (2026-03-12) P2-003 完了。`docs/FIRECRACKER_POOL.md` に単一 KVM ホスト前提の Firecracker VM プール設計を追加し、`minimum warm instances=2` / `maximum warm instances=8` / 利用率 `70%` の `scale-out` / `Warm > 4 が 5 minutes 継続` の `scale-in` を固定。`Creating`→`Warm`→`Leased`→`Draining` の状態遷移、health check、`acquire`/`release`/`reap` の handoff contract を定義して `P2-004`/`P2-005` へ接続。
 - (2026-03-13) P2-004 完了。`agentbox-core/src/vm_pool.rs` に Firecracker VM プール状態機械を追加し、`acquire`/`release`/`reap` の公開 API、`Creating`/`Warm`/`Leased`/`Draining` 遷移、`minimum warm=2`/`maximum warm=8`/利用率 `70%` の `scale-out`、`Warm > 4 が 5 minutes` 継続時の `scale-in`、`boot_source`/`lineage_id`/`reuse_count` を含む VM メタデータを実装。Rust ユニットテストで warm hit、cold miss、待機タイムアウト、drain 後ヘルスチェック、stale `Creating` の破棄、最古 warm VM の `scale-in` を固定化し、`P2-005` の snapshot restore へ接続できるバックエンド契約を定義した。
+- (2026-03-17) P2-005 完了。`agentbox-core/src/snapshot.rs` に `SnapshotAwareProvider` と `SnapshotControlPlane` を追加し、優先ライン (`rootfs.ext4`) に対する最新スナップショット restore、restore 失敗時の cold boot fallback、失敗 `snapshot_id` の in-process quarantine を実装。`agentbox-core/src/vm_pool.rs` では `CreatedVm`/`VmMetadata`/`VmLease` に optional `snapshot_id` を追加し、Rust テストで restore 優先、fallback、quarantine、pool への metadata 伝播を固定化。`docs/FIRECRACKER_SNAPSHOT.md` を追加して運用契約を文書化した。
 
 ### 1.9 リリース準備
 
@@ -174,7 +175,7 @@
 | P2-002 | VM イメージ作成 | Python + 基本ライブラリを含む rootfs イメージ作成（Alpine Linux ベース） | `[x]` | P2-001 |
 | P2-003 | VM プール管理設計 | プール戦略設計（ウォームインスタンス数、スケール閾値） | `[x]` | P2-001 |
 | P2-004 | VM プール実装 | ウォーム VM プールの生成・取得・返却ロジック実装 | `[x]` | P2-003 |
-| P2-005 | スナップショット起動 | 起動済み VM のメモリスナップショットからの高速復元実装 | `[ ]` | P2-002, P2-004 |
+| P2-005 | スナップショット起動 | 起動済み VM のメモリスナップショットからの高速復元実装 | `[x]` | P2-002, P2-004 |
 
 ### 2.2 アダプティブ・ランタイム・ルーター
 

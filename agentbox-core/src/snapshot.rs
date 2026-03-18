@@ -53,6 +53,9 @@ impl<P> SnapshotAwareProvider<P> {
 
 impl<P: SnapshotControlPlane> VmProvider for SnapshotAwareProvider<P> {
     fn create_vm(&mut self) -> Result<CreatedVm> {
+        // Catalog query errors are propagated as VM creation failures (fail-fast).
+        // Only restore errors fall back to cold boot; a broken catalog is an infrastructure
+        // problem that should surface immediately rather than silently degrade to cold boot.
         if let Some(snapshot) = self.inner.latest_snapshot(&self.preferred_lineage_id)? {
             if !self
                 .quarantined_snapshot_ids
@@ -70,8 +73,10 @@ impl<P: SnapshotControlPlane> VmProvider for SnapshotAwareProvider<P> {
                     Err(error) => {
                         self.quarantined_snapshot_ids
                             .insert(snapshot.snapshot_id.clone());
-                        self.inner
-                            .record_restore_failure(&snapshot, &error.to_string())?;
+                        // best-effort: a reporting failure must not block the cold-boot fallback.
+                        let _ = self
+                            .inner
+                            .record_restore_failure(&snapshot, &error.to_string());
                     }
                 }
             }
@@ -115,9 +120,11 @@ mod tests {
         restore_errors: VecDeque<String>,
         restore_attempts: Vec<String>,
         latest_snapshot_requests: Vec<String>,
+        latest_snapshot_error: Option<String>,
         boot_creations: usize,
         next_vm_id: usize,
         restore_failure_records: Vec<(String, String)>,
+        record_failure_error: Option<String>,
     }
 
     impl FakeSnapshotControlPlane {
@@ -156,6 +163,9 @@ mod tests {
     impl SnapshotControlPlane for FakeSnapshotControlPlane {
         fn latest_snapshot(&mut self, lineage_id: &str) -> Result<Option<SnapshotArtifact>> {
             self.latest_snapshot_requests.push(lineage_id.to_string());
+            if let Some(ref message) = self.latest_snapshot_error.take() {
+                bail!("{}", message);
+            }
             Ok(self.latest_snapshot.clone())
         }
 
@@ -180,6 +190,9 @@ mod tests {
         ) -> Result<()> {
             self.restore_failure_records
                 .push((snapshot.snapshot_id.clone(), error_message.to_string()));
+            if let Some(ref message) = self.record_failure_error.take() {
+                bail!("{}", message);
+            }
             Ok(())
         }
 
@@ -297,5 +310,42 @@ mod tests {
         assert_eq!(lease.boot_source, BootSource::Snapshot);
         assert_eq!(lease.snapshot_id.as_deref(), Some("snap-004"));
         assert_eq!(lease.lineage_id, "rootfs.ext4");
+    }
+
+    #[test]
+    fn snapshot_aware_provider_falls_back_to_boot_when_record_restore_failure_errors() {
+        let mut control_plane = FakeSnapshotControlPlane::with_snapshot("snap-005");
+        control_plane
+            .restore_errors
+            .push_back("snapshot corrupted".to_string());
+        control_plane.record_failure_error = Some("audit log unavailable".to_string());
+        let mut provider = SnapshotAwareProvider::new(control_plane, "rootfs.ext4");
+
+        // record_restore_failure failure must not block cold-boot fallback
+        let created_vm = provider
+            .create_vm()
+            .expect("provider should still fall back to boot even when recording fails");
+
+        assert_eq!(created_vm.boot_source, BootSource::Boot);
+        assert_eq!(created_vm.snapshot_id, None);
+        assert_eq!(provider.inner().boot_creations, 1);
+        // quarantine must still be applied so the broken snapshot is not retried
+        assert!(provider.quarantined_snapshot_ids.contains("snap-005"));
+    }
+
+    #[test]
+    fn snapshot_aware_provider_propagates_latest_snapshot_catalog_error() {
+        let mut control_plane = FakeSnapshotControlPlane::with_snapshot("snap-006");
+        control_plane.latest_snapshot_error = Some("catalog I/O error".to_string());
+        let mut provider = SnapshotAwareProvider::new(control_plane, "rootfs.ext4");
+
+        let result = provider.create_vm();
+        assert!(
+            result.is_err(),
+            "catalog error should propagate as create_vm failure"
+        );
+        let message = result.unwrap_err().to_string();
+        assert!(message.contains("catalog I/O error"));
+        assert_eq!(provider.inner().boot_creations, 0);
     }
 }
